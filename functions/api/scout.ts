@@ -1,0 +1,2 @@
+export async function onRequestPost({request,env}:any){const data=await request.json(); if(env.DB){await env.DB.prepare('INSERT INTO scout_notes(match_id,category,rating,note) VALUES(?,?,?,?)').bind(data.match_id,data.category,data.rating,data.note).run()} return Response.json({ok:true})}
+export async function onRequestGet({env}:any){if(!env.DB)return Response.json([]); const r=await env.DB.prepare('SELECT * FROM scout_notes ORDER BY created_at DESC LIMIT 100').all(); return Response.json(r.results)}

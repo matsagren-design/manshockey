@@ -1,6 +1,20 @@
-# MansHockey Elite
+# MansHockey 3.0
 
-Ny version med professionell dashboard, matchcenter, BCHL-tabell, spelarprofil, scoutcenter, flygportal, media, dokument, karta och AI-yta.
+React + TypeScript + Vite + Cloudflare Pages/Functions + D1-förberedd app.
 
-## Publicera
-Kopiera filerna till GitHub-mappen `manshockey`, commit: `MansHockey Elite`, Push origin. Cloudflare publicerar automatiskt.
+## Lokal test
+```bash
+npm install
+npm run dev
+```
+
+## Cloudflare Pages
+Framework preset: Vite
+Build command: `npm run build`
+Build output directory: `dist`
+
+## D1
+Skapa databas i Cloudflare och kör `schema/d1.sql`. Lägg databas-ID i `wrangler.toml`.
+
+## Deploy via GitHub
+Kopiera filerna till GitHub-repot `manshockey`, commit och push. Cloudflare bygger automatiskt.
