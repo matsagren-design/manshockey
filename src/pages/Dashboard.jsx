@@ -15,10 +15,10 @@ export function Dashboard({ matches, scout, media, travel, documents, health, se
   const c = useCountdown(next?.game_date);
   const brooksTime = new Intl.DateTimeFormat('sv-SE', { hour:'2-digit', minute:'2-digit', timeZone:'America/Edmonton' }).format(new Date());
 
-  return <Page kicker="MansHockey Cloud" title="Datadriven hockeyplattform">
+  return <Page kicker="MansHockey Cloud CMS" title="Riktig datadriven admin">
     <div className="livegrid">
       <div className="intro">
-        <p>Innehåll ska nu hanteras via admin och API, inte genom nya ZIP-versioner. D1/R2 är förberett och kan kopplas i Cloudflare.</p>
+        <p>Nu finns CRUD: skapa, redigera och ta bort innehåll via API och D1. Aktivera Admin för att visa formulär och åtgärder.</p>
         <div className="actions"><button onClick={() => setActive('admin')}>Öppna Admin</button><button onClick={() => setActive('matches')}>Matcharkiv</button></div>
       </div>
       <div className="next">
@@ -32,11 +32,11 @@ export function Dashboard({ matches, scout, media, travel, documents, health, se
       <Card icon={<Database/>} label="Databas" value={health?.d1 ? 'D1 aktiv' : 'Fallback'} sub="Cloudflare D1"/>
       <Card icon={<Folder/>} label="Filer" value={health?.r2 ? 'R2 aktiv' : 'R2 redo'} sub="bilder/video/PDF"/>
       <Card icon={<Clock/>} label="Brooks" value={brooksTime} sub="lokal tid"/>
-      <Card icon={<BookOpen/>} label="Matcher" value={matches.length} sub="D1/API" onClick={() => setActive('matches')}/>
+      <Card icon={<BookOpen/>} label="Matcher" value={matches.length} sub="CMS" onClick={() => setActive('matches')}/>
       <Card icon={<Target/>} label="Scout" value={scout.length} sub="rapporter" onClick={() => setActive('scout')}/>
-      <Card icon={<Newspaper/>} label="Media" value={media.length} sub="flöde" onClick={() => setActive('media')}/>
-      <Card icon={<Plane/>} label="Resor" value={travel.length} sub="bevakning" onClick={() => setActive('travel')}/>
-      <Card icon={<Bot/>} label="AI Coach" value="Redo" sub="D1-context" onClick={() => setActive('ai')}/>
+      <Card icon={<Newspaper/>} label="Media" value={media.length} sub="artiklar" onClick={() => setActive('media')}/>
+      <Card icon={<Plane/>} label="Resor" value={travel.length} sub="bevakningar" onClick={() => setActive('travel')}/>
+      <Card icon={<Bot/>} label="AI Coach" value="D1" sub="context" onClick={() => setActive('ai')}/>
     </div>
   </Page>
 }

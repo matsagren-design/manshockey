@@ -6,3 +6,8 @@ compatibility_date = "2026-07-08"
 binding = "DB"
 database_name = "manshockey-db"
 database_id = "9de32d3e-ea08-47f7-9446-67ebd02b910b"
+
+# Aktivera när R2 är skapad:
+# [[r2_buckets]]
+# binding = "FILES"
+# bucket_name = "manshockey-files"

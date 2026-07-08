@@ -20,7 +20,7 @@ function App() {
   const [travel, setTravel] = useState([]);
   const [documents, setDocuments] = useState([]);
 
-  useEffect(() => {
+  async function loadAll() {
     getJson('/api/health', {}).then(setHealth);
     getJson('/api/analytics', {}).then(setAnalytics);
     getItems('matches', []).then(setMatches);
@@ -28,18 +28,22 @@ function App() {
     getItems('media', []).then(setMedia);
     getItems('travel', []).then(setTravel);
     getItems('documents', []).then(setDocuments);
+  }
+
+  useEffect(() => {
+    loadAll();
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('/service-worker.js').catch(() => {});
   }, []);
 
   const pages = {
     dashboard: <Dashboard matches={matches} scout={scout} media={media} travel={travel} documents={documents} health={health} setActive={setActive}/>,
-    matches: <DataPage type="matches" kicker="Match CMS" title="Matcher och matchrapporter" items={matches} setItems={setMatches} isAdmin={isAdmin}/>,
-    scout: <DataPage type="scout" kicker="Scout CMS" title="Scoutlogg" items={scout} setItems={setScout} isAdmin={isAdmin}/>,
+    matches: <DataPage type="matches" kicker="Match CMS" title="Matcher och matchrapporter" items={matches} setItems={setMatches} isAdmin={isAdmin} reload={loadAll}/>,
+    scout: <DataPage type="scout" kicker="Scout CMS" title="Scoutlogg" items={scout} setItems={setScout} isAdmin={isAdmin} reload={loadAll}/>,
     analytics: <Analytics analytics={analytics}/>,
     ai: <AICoach/>,
-    media: <DataPage type="media" kicker="Media CMS" title="Media och nyheter" items={media} setItems={setMedia} isAdmin={isAdmin}/>,
-    travel: <DataPage type="travel" kicker="Travel CMS" title="Resor och bevakningar" items={travel} setItems={setTravel} isAdmin={isAdmin}/>,
-    documents: <DataPage type="documents" kicker="Document CMS" title="Dokument och filer" items={documents} setItems={setDocuments} isAdmin={isAdmin}/>,
+    media: <DataPage type="media" kicker="Media CMS" title="Media och nyheter" items={media} setItems={setMedia} isAdmin={isAdmin} reload={loadAll}/>,
+    travel: <DataPage type="travel" kicker="Travel CMS" title="Resor och bevakningar" items={travel} setItems={setTravel} isAdmin={isAdmin} reload={loadAll}/>,
+    documents: <DataPage type="documents" kicker="Document CMS" title="Dokument och filer" items={documents} setItems={setDocuments} isAdmin={isAdmin} reload={loadAll}/>,
     admin: <Admin isAdmin={isAdmin} setIsAdmin={setIsAdmin} health={health}/>
   };
 

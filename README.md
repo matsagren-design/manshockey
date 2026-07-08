@@ -1,13 +1,11 @@
-# MansHockey Cloud
+# MansHockey Cloud CMS
 
-Detta är första riktiga datadrivna versionen:
+Ny datadriven version med CRUD:
 
-- Admin-CMS för matcher, scout, media, resor och dokument
-- Cloudflare D1-förberedelse
-- Cloudflare R2-förberedelse
-- API-functions för GET/POST
-- AI Coach som kan läsa D1-kontext när DB är kopplad
-- Modulär React-kod
+- skapa
+- redigera
+- ta bort
+- hämta från D1
 
 ## Cloudflare Pages
 - Framework preset: None
@@ -17,8 +15,5 @@ Detta är första riktiga datadrivna versionen:
 ## Publicering
 1. Packa upp.
 2. Kopiera innehållet till GitHub-mappen `manshockey`.
-3. Commit: `MansHockey Cloud`
+3. Commit: `MansHockey Cloud CMS`
 4. Push origin.
-
-## Nästa steg
-Se `docs/CLOUD_SETUP.md`.

@@ -18,13 +18,13 @@ export function Layout({ active, setActive, isAdmin, setIsAdmin, children }) {
     <header className="top">
       <div className="brand" onClick={() => setActive('dashboard')}>
         <div className="mark">MC</div>
-        <div><strong>MansHockey Cloud</strong><span>datadriven platform</span></div>
+        <div><strong>MansHockey Cloud</strong><span>CMS + D1</span></div>
       </div>
       <nav>{tabs.map(([id,label,Icon]) => <button key={id} className={active===id?'active':''} onClick={() => setActive(id)}><Icon size={16}/>{label}</button>)}</nav>
       <button className={isAdmin?'admin on':'admin'} onClick={() => setIsAdmin(!isAdmin)}>{isAdmin ? <LogOut size={14}/> : <KeyRound size={14}/>} {isAdmin?'Admin':'Login'}</button>
     </header>
     {children}
-    <footer><span>MansHockey Cloud · manshockey.com</span><span>D1/R2-ready</span></footer>
+    <footer><span>MansHockey Cloud CMS · manshockey.com</span><span>CRUD + D1</span></footer>
   </main>
 }
 
