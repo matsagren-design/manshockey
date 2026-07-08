@@ -11,4 +11,3 @@ database_id = "9de32d3e-ea08-47f7-944e-67ebd02b910b"
 # [[r2_buckets]]
 # binding = "FILES"
 # bucket_name = "manshockey-files"
-t
