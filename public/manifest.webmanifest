@@ -1,10 +1,10 @@
 {
-  "name": "MansHockey 10",
+  "name": "MansHockey 11",
   "short_name": "MansHockey",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#020617",
   "theme_color": "#020617",
-  "description": "MansHockey med egen admininloggning.",
+  "description": "Admin CMS f\u00f6r M\u00e5ns Hockey.",
   "icons": []
 }

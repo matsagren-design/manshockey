@@ -24,17 +24,13 @@ async function requireAdmin(context) {
 }
 
 const fallback = [{"id": 1, "opponent": "Spruce Grove Saints", "game_date": "2026-09-09T03:00:00+02:00", "home_away": "Hemma", "arena": "Centennial Regional Arena", "city": "Brooks", "tv_link": "https://www.flohockey.tv/", "report_before": "Fokus på enkel puckhantering."}];
-
 export async function onRequestGet(context) {
   try {
     if (!context.env.DB) return json({ source:'fallback', items:fallback });
     const { results } = await context.env.DB.prepare('SELECT * FROM matches ORDER BY game_date ASC LIMIT 500').all();
     return json({ source:'d1', items:results });
-  } catch (err) {
-    return json({ source:'fallback-error', error:String(err), items:fallback });
-  }
+  } catch (err) { return json({ source:'fallback-error', error:String(err), items:fallback }); }
 }
-
 export async function onRequestPost(context) {
   const user = await requireAdmin(context);
   if (!user) return json({ ok:false, error:'Unauthorized' }, 401);
@@ -44,7 +40,6 @@ export async function onRequestPost(context) {
     return json({ ok:true, action:'created', result });
   } catch (err) { return json({ ok:false, error:String(err) }, 500); }
 }
-
 export async function onRequestPut(context) {
   const user = await requireAdmin(context);
   if (!user) return json({ ok:false, error:'Unauthorized' }, 401);
@@ -55,7 +50,6 @@ export async function onRequestPut(context) {
     return json({ ok:true, action:'updated', result });
   } catch (err) { return json({ ok:false, error:String(err) }, 500); }
 }
-
 export async function onRequestDelete(context) {
   const user = await requireAdmin(context);
   if (!user) return json({ ok:false, error:'Unauthorized' }, 401);

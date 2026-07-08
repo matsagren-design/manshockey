@@ -10,9 +10,6 @@ function getCookie(request, name) {
   }
   return null;
 }
-function makeId() {
-  return crypto.randomUUID();
-}
 async function readBody(request) {
   try { return await request.json(); } catch { return {}; }
 }

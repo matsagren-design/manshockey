@@ -5,10 +5,10 @@ import { createItem, deleteItem, formatDate, updateItem } from '../lib/api.js';
 
 const configs = {
   matches: { empty:{opponent:'',game_date:'',home_away:'Hemma',arena:'',city:'',tv_link:'',result:'',report_before:'',report_after:''}, titleField:'opponent', tagField:'home_away' },
-  scout: { empty:{match_id:'',category:'',score:80,note:''}, titleField:'category', tagField:'score' },
-  media: { empty:{title:'',source:'',url:'',tag:'',summary:'',published_at:''}, titleField:'title', tagField:'tag' },
-  travel: { empty:{origin:'ARN',destination:'YYC',airline:'',max_price_sek:10000,depart_after:'09:30',avoid_usa:1,note:''}, titleField:'airline', tagField:'destination' },
-  documents: { empty:{title:'',category:'',note:'',file_key:'',url:''}, titleField:'title', tagField:'category' }
+  scout: { empty:{match_id:'',category:'',score:80,note:'',ai_comment:''}, titleField:'category', tagField:'score' },
+  media: { empty:{title:'',source:'',url:'',tag:'',summary:'',media_type:'link',published_at:''}, titleField:'title', tagField:'tag' },
+  travel: { empty:{origin:'ARN',destination:'YYC',airline:'',max_price_sek:10000,depart_after:'09:30',avoid_usa:1,note:'',status:'Bevakas'}, titleField:'airline', tagField:'status' },
+  documents: { empty:{title:'',category:'',note:'',file_key:'',url:'',status:'Aktiv'}, titleField:'title', tagField:'category' }
 };
 
 export function DataPage({ type, title, kicker, items, setItems, user, reload }) {
@@ -37,23 +37,23 @@ export function DataPage({ type, title, kicker, items, setItems, user, reload })
 
   return <Page kicker={kicker} title={title} action={isAdmin ? <button onClick={startCreate}><Plus size={16}/> Ny</button> : null}>
     {message && <div className="notice">{message}</div>}
-    <div className="grid">
-      {items.map((item,idx)=><article className="tile" key={item.id||idx}>
-        <span className="tag">{item[config.tagField] || 'Post'}</span>
-        <h3>{item[config.titleField] || 'Post'}</h3>
-        {item.game_date && <p>{formatDate(item.game_date)}</p>}
-        {item.arena && <p>{item.arena}</p>}
-        {item.note && <p>{item.note}</p>}
-        {item.summary && <p>{item.summary}</p>}
-        {item.report_before && <div className="report"><b>Inför</b><p>{item.report_before}</p></div>}
-        {item.url && <a href={item.url} target="_blank" rel="noreferrer"><ExternalLink size={16}/> Öppna</a>}
-        {isAdmin && <div className="row-actions"><button onClick={()=>startEdit(item)}><Edit3 size={15}/> Redigera</button><button className="danger" onClick={()=>remove(item)}><Trash2 size={15}/> Ta bort</button></div>}
-      </article>)}
+    <div className="cms-grid">
+      <div className="table-card">
+        <table>
+          <thead><tr><th>Titel</th><th>Typ</th><th>Datum/Info</th><th></th></tr></thead>
+          <tbody>{items.map((item,idx)=><tr key={item.id||idx}>
+            <td><strong>{item[config.titleField] || 'Post'}</strong><small>{item.summary || item.note || item.arena || item.url}</small></td>
+            <td><span className="tag">{item[config.tagField] || 'Post'}</span></td>
+            <td>{item.game_date ? formatDate(item.game_date) : (item.status || item.source || item.airline || '—')}</td>
+            <td>{isAdmin && <div className="row-actions compact"><button onClick={()=>startEdit(item)}><Edit3 size={15}/></button><button className="danger" onClick={()=>remove(item)}><Trash2 size={15}/></button></div>}{item.url && <a href={item.url} target="_blank" rel="noreferrer"><ExternalLink size={15}/></a>}</td>
+          </tr>)}</tbody>
+        </table>
+      </div>
+      {isAdmin && <form id={type+'-form'} className="admin-form" onSubmit={submit}>
+        <div className="form-head"><h2>{editing?'Redigera':'Ny post'}</h2>{editing&&<button type="button" className="ghost" onClick={()=>{setEditing(null);setForm(config.empty)}}><X size={16}/> Avbryt</button>}</div>
+        {fields.map(field=><label key={field}>{field}<input value={form[field] ?? ''} onChange={e=>setForm({...form,[field]:e.target.value})}/></label>)}
+        <button type="submit"><Save size={16}/> {editing?'Uppdatera':'Spara'}</button>
+      </form>}
     </div>
-    {isAdmin && <form id={type+'-form'} className="admin-form inline-form" onSubmit={submit}>
-      <div className="form-head"><h2>{editing?'Redigera post':'Ny post'}</h2>{editing&&<button type="button" className="ghost" onClick={()=>{setEditing(null);setForm(config.empty)}}><X size={16}/> Avbryt</button>}</div>
-      {fields.map(field=><label key={field}>{field}<input value={form[field] ?? ''} onChange={e=>setForm({...form,[field]:e.target.value})}/></label>)}
-      <button type="submit"><Save size={16}/> {editing?'Uppdatera':'Spara'}</button>
-    </form>}
   </Page>
 }

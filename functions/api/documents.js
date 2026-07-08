@@ -23,39 +23,33 @@ async function requireAdmin(context) {
   return user;
 }
 
-const fallback = [{"id": 1, "title": "Pass", "category": "Resa", "note": "Kopia och giltighet."}];
-
+const fallback = [{"id": 1, "title": "Pass", "category": "Resa", "note": "Kopia och giltighet.", "status": "Aktiv"}];
 export async function onRequestGet(context) {
   try {
     if (!context.env.DB) return json({ source:'fallback', items:fallback });
     const { results } = await context.env.DB.prepare('SELECT * FROM documents ORDER BY id DESC LIMIT 500').all();
     return json({ source:'d1', items:results });
-  } catch (err) {
-    return json({ source:'fallback-error', error:String(err), items:fallback });
-  }
+  } catch (err) { return json({ source:'fallback-error', error:String(err), items:fallback }); }
 }
-
 export async function onRequestPost(context) {
   const user = await requireAdmin(context);
   if (!user) return json({ ok:false, error:'Unauthorized' }, 401);
   try {
     const body = await readBody(context.request);
-    const result = await context.env.DB.prepare('INSERT INTO documents (title, category, note, file_key, url) VALUES (?, ?, ?, ?, ?)').bind(body.title ?? '', body.category ?? '', body.note ?? '', body.file_key ?? '', body.url ?? '').run();
+    const result = await context.env.DB.prepare('INSERT INTO documents (title, category, note, file_key, url, status) VALUES (?, ?, ?, ?, ?, ?)').bind(body.title ?? '', body.category ?? '', body.note ?? '', body.file_key ?? '', body.url ?? '', body.status ?? '').run();
     return json({ ok:true, action:'created', result });
   } catch (err) { return json({ ok:false, error:String(err) }, 500); }
 }
-
 export async function onRequestPut(context) {
   const user = await requireAdmin(context);
   if (!user) return json({ ok:false, error:'Unauthorized' }, 401);
   try {
     const body = await readBody(context.request);
     if (!body.id) return json({ ok:false, error:'Missing id' }, 400);
-    const result = await context.env.DB.prepare('UPDATE documents SET title = ?, category = ?, note = ?, file_key = ?, url = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(body.title ?? '', body.category ?? '', body.note ?? '', body.file_key ?? '', body.url ?? '', body.id).run();
+    const result = await context.env.DB.prepare('UPDATE documents SET title = ?, category = ?, note = ?, file_key = ?, url = ?, status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(body.title ?? '', body.category ?? '', body.note ?? '', body.file_key ?? '', body.url ?? '', body.status ?? '', body.id).run();
     return json({ ok:true, action:'updated', result });
   } catch (err) { return json({ ok:false, error:String(err) }, 500); }
 }
-
 export async function onRequestDelete(context) {
   const user = await requireAdmin(context);
   if (!user) return json({ ok:false, error:'Unauthorized' }, 401);

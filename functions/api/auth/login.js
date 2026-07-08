@@ -10,9 +10,6 @@ function getCookie(request, name) {
   }
   return null;
 }
-function makeId() {
-  return crypto.randomUUID();
-}
 async function readBody(request) {
   try { return await request.json(); } catch { return {}; }
 }
@@ -25,11 +22,9 @@ export async function onRequestPost(context) {
     if (!context.env.DB) return json({ ok:false, error:'D1 saknas' }, 500);
     const user = await context.env.DB.prepare('SELECT * FROM users WHERE lower(email) = ? LIMIT 1').bind(email).first();
     if (!user || user.password_hash !== password) return json({ ok:false, error:'Fel e-post eller lösenord' }, 401);
-
-    const sid = makeId();
+    const sid = crypto.randomUUID();
     const expires = new Date(Date.now() + 1000 * 60 * 60 * 24 * 14).toISOString();
     await context.env.DB.prepare('INSERT INTO sessions (id, user_id, expires_at) VALUES (?, ?, ?)').bind(sid, user.id, expires).run();
-
     const cookie = `mh_session=${encodeURIComponent(sid)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${60*60*24*14}`;
     return json({ ok:true, user:{ id:user.id, email:user.email, name:user.name, role:user.role } }, 200, { 'Set-Cookie': cookie });
   } catch (err) {

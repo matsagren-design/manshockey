@@ -1,36 +1,39 @@
 import React from 'react';
-import { Home, BookOpen, BarChart3, Bot, Newspaper, Plane, Folder, UploadCloud, KeyRound, LogOut, Target } from 'lucide-react';
+import { BarChart3, BookOpen, Bot, CalendarDays, FileText, Home, KeyRound, LogOut, Newspaper, Plane, Settings, Target, UploadCloud, Users } from 'lucide-react';
 
 export const tabs = [
   ['dashboard','Dashboard',Home],
   ['matches','Matcher',BookOpen],
+  ['media','Media',Newspaper],
   ['scout','Scout',Target],
+  ['travel','Resor',Plane],
+  ['documents','Dokument',FileText],
+  ['calendar','Kalender',CalendarDays],
+  ['users','Användare',Users],
   ['analytics','Analytics',BarChart3],
   ['ai','AI Coach',Bot],
-  ['media','Media',Newspaper],
-  ['travel','Resor',Plane],
-  ['documents','Dokument',Folder],
-  ['admin','Admin',UploadCloud]
+  ['admin','Inställningar',Settings]
 ];
 
 export function Layout({ active, setActive, user, onLogout, children }) {
-  return <main>
-    <header className="top">
+  return <div className="shell">
+    <aside className="sidebar">
       <div className="brand" onClick={() => setActive('dashboard')}>
-        <div className="mark">M10</div>
-        <div><strong>MansHockey 10</strong><span>{user ? `${user.name || user.email} · ${user.role}` : 'secure CMS'}</span></div>
+        <div className="mark">M11</div>
+        <div><strong>MansHockey</strong><span>Admin CMS</span></div>
       </div>
-      <nav>{tabs.map(([id,label,Icon]) => <button key={id} className={active===id?'active':''} onClick={() => setActive(id)}><Icon size={16}/>{label}</button>)}</nav>
-      {user ? <button className="admin on" onClick={onLogout}><LogOut size={14}/> Logga ut</button> : <button className="admin" onClick={() => setActive('admin')}><KeyRound size={14}/> Login</button>}
-    </header>
-    {children}
-    <footer><span>MansHockey 10 · manshockey.com</span><span>Auth + CMS + D1</span></footer>
-  </main>
+      <nav>{tabs.map(([id,label,Icon]) => <button key={id} className={active===id?'active':''} onClick={() => setActive(id)}><Icon size={18}/>{label}</button>)}</nav>
+      <div className="side-user">
+        {user ? <><span>{user.name || user.email}</span><button onClick={onLogout}><LogOut size={16}/> Logga ut</button></> : <button onClick={() => setActive('admin')}><KeyRound size={16}/> Logga in</button>}
+      </div>
+    </aside>
+    <main className="content">{children}<footer><span>MansHockey 11 · manshockey.com</span><span>Admin CMS</span></footer></main>
+  </div>
 }
 
 export function Page({ kicker, title, children, action }) {
   return <section className="page"><div className="head"><div><span>{kicker}</span><h1>{title}</h1></div>{action}</div>{children}</section>
 }
-export function Card({ icon, label, value, sub, onClick }) {
-  return <button className="card" onClick={onClick}><div className="icon">{icon}</div><div><span>{label}</span><strong>{value}</strong>{sub && <small>{sub}</small>}</div></button>
+export function StatCard({ icon, label, value, sub, onClick }) {
+  return <button className="stat-card" onClick={onClick}><div className="icon">{icon}</div><div><span>{label}</span><strong>{value}</strong>{sub && <small>{sub}</small>}</div></button>
 }

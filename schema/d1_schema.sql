@@ -1,4 +1,4 @@
--- MansHockey 10.0 schema
+-- MansHockey 11 Admin CMS schema
 
 CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS scout_reports (
   category TEXT NOT NULL,
   score INTEGER NOT NULL,
   note TEXT,
+  ai_comment TEXT,
   created_at TEXT DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
@@ -48,6 +49,7 @@ CREATE TABLE IF NOT EXISTS media_items (
   url TEXT,
   tag TEXT,
   summary TEXT,
+  media_type TEXT DEFAULT 'link',
   published_at TEXT,
   created_at TEXT DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT DEFAULT CURRENT_TIMESTAMP
@@ -62,6 +64,7 @@ CREATE TABLE IF NOT EXISTS travel_watch (
   depart_after TEXT DEFAULT '09:30',
   avoid_usa INTEGER DEFAULT 1,
   note TEXT,
+  status TEXT DEFAULT 'Bevakas',
   created_at TEXT DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
@@ -73,6 +76,7 @@ CREATE TABLE IF NOT EXISTS documents (
   note TEXT,
   file_key TEXT,
   url TEXT,
+  status TEXT DEFAULT 'Aktiv',
   created_at TEXT DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 );

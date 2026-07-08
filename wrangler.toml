@@ -7,9 +7,6 @@ binding = "DB"
 database_name = "manshockey-db"
 database_id = "9de32d3e-ea08-47f7-9446-67ebd02b910b"
 
-# Lägg till egen hemlighet senare i Cloudflare:
-# SESSION_SECRET = "byt-detta-till-en-lång-hemlighet"
-
 # Aktivera när R2 är skapad:
 # [[r2_buckets]]
 # binding = "FILES"

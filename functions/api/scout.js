@@ -23,39 +23,33 @@ async function requireAdmin(context) {
   return user;
 }
 
-const fallback = [{"id": 1, "category": "Defensivt spel", "score": 92, "note": "Stark framför mål."}];
-
+const fallback = [{"id": 1, "category": "Defensivt spel", "score": 92, "note": "Stark framför mål.", "ai_comment": "Stabil defensiv profil."}];
 export async function onRequestGet(context) {
   try {
     if (!context.env.DB) return json({ source:'fallback', items:fallback });
     const { results } = await context.env.DB.prepare('SELECT * FROM scout_reports ORDER BY id DESC LIMIT 500').all();
     return json({ source:'d1', items:results });
-  } catch (err) {
-    return json({ source:'fallback-error', error:String(err), items:fallback });
-  }
+  } catch (err) { return json({ source:'fallback-error', error:String(err), items:fallback }); }
 }
-
 export async function onRequestPost(context) {
   const user = await requireAdmin(context);
   if (!user) return json({ ok:false, error:'Unauthorized' }, 401);
   try {
     const body = await readBody(context.request);
-    const result = await context.env.DB.prepare('INSERT INTO scout_reports (match_id, category, score, note) VALUES (?, ?, ?, ?)').bind(body.match_id ?? '', body.category ?? '', body.score ?? '', body.note ?? '').run();
+    const result = await context.env.DB.prepare('INSERT INTO scout_reports (match_id, category, score, note, ai_comment) VALUES (?, ?, ?, ?, ?)').bind(body.match_id ?? '', body.category ?? '', body.score ?? '', body.note ?? '', body.ai_comment ?? '').run();
     return json({ ok:true, action:'created', result });
   } catch (err) { return json({ ok:false, error:String(err) }, 500); }
 }
-
 export async function onRequestPut(context) {
   const user = await requireAdmin(context);
   if (!user) return json({ ok:false, error:'Unauthorized' }, 401);
   try {
     const body = await readBody(context.request);
     if (!body.id) return json({ ok:false, error:'Missing id' }, 400);
-    const result = await context.env.DB.prepare('UPDATE scout_reports SET match_id = ?, category = ?, score = ?, note = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(body.match_id ?? '', body.category ?? '', body.score ?? '', body.note ?? '', body.id).run();
+    const result = await context.env.DB.prepare('UPDATE scout_reports SET match_id = ?, category = ?, score = ?, note = ?, ai_comment = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(body.match_id ?? '', body.category ?? '', body.score ?? '', body.note ?? '', body.ai_comment ?? '', body.id).run();
     return json({ ok:true, action:'updated', result });
   } catch (err) { return json({ ok:false, error:String(err) }, 500); }
 }
-
 export async function onRequestDelete(context) {
   const user = await requireAdmin(context);
   if (!user) return json({ ok:false, error:'Unauthorized' }, 401);
