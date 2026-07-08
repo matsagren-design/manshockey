@@ -1,40 +1,5 @@
-import React from 'react';
-import { Activity, BarChart3, BookOpen, Bot, CalendarDays, FileText, Home, KeyRound, LogOut, Newspaper, Plane, Settings, Target, Users } from 'lucide-react';
-
-export const tabs = [
-  ['dashboard','Dashboard',Home],
-  ['matchcenter','Matchcenter',CalendarDays],
-  ['gamecenter','GameCenter',Activity],
-  ['matches','Matcher',BookOpen],
-  ['scout','Scout',Target],
-  ['media','Media',Newspaper],
-  ['travel','Resor',Plane],
-  ['family','Familj',Users],
-  ['documents','Dokument',FileText],
-  ['analytics','Analytics',BarChart3],
-  ['ai','AI Coach',Bot],
-  ['admin','Admin',Settings]
-];
-
-export function Layout({ active, setActive, user, onLogout, children }) {
-  return <div className="shell">
-    <header className="topbar">
-      <div className="brand" onClick={() => setActive('dashboard')}>
-        <div className="mark">26.1</div>
-        <div><strong>MansHockey Enterprise</strong><span>GameCenter platform</span></div>
-      </div>
-      <nav>{tabs.map(([id,label,Icon]) => <button key={id} className={active===id?'active':''} onClick={() => setActive(id)}><Icon size={18}/>{label}</button>)}</nav>
-      <div className="userbar">
-        {user ? <button onClick={onLogout}><LogOut size={16}/> Logga ut</button> : <button onClick={() => setActive('admin')}><KeyRound size={16}/> Login</button>}
-      </div>
-    </header>
-    <main className="content">{children}<footer><span>MansHockey Enterprise 2026.1</span><span>manshockey.com</span></footer></main>
-  </div>
-}
-
-export function Page({ kicker, title, children, action }) {
-  return <section className="page"><div className="head"><div><span>{kicker}</span><h1>{title}</h1></div>{action}</div>{children}</section>
-}
-export function StatCard({ icon, label, value, sub, onClick }) {
-  return <button className="stat-card" onClick={onClick}><div className="icon">{icon}</div><div><span>{label}</span><strong>{value}</strong>{sub && <small>{sub}</small>}</div></button>
-}
+import React from 'react';import{Activity,BarChart3,BookOpen,Bot,CalendarDays,FileText,Home,KeyRound,LogOut,Newspaper,Plane,Settings,Shield,Target,User,Users}from'lucide-react';
+const tabs=[['dashboard','Dashboard',Home],['matchcenter','Matchcenter',CalendarDays],['gamecenter','GameCenter',Activity],['scoutcenter','Scout Center',Shield],['player','Måns',User],['matches','Matcher',BookOpen],['media','Media',Newspaper],['travel','Resor',Plane],['family','Familj',Users],['documents','Dokument',FileText],['analytics','Analytics',BarChart3],['ai','AI Coach',Bot],['admin','Admin',Settings]];
+export function Layout({active,setActive,user,onLogout,children}){return <div className="shell"><header className="topbar"><div className="brand" onClick={()=>setActive('dashboard')}><div className="mark">E30</div><div><strong>MansHockey Enterprise</strong><span>Control Room</span></div></div><nav>{tabs.map(([id,label,Icon])=><button key={id} className={active===id?'active':''} onClick={()=>setActive(id)}><Icon size={18}/>{label}</button>)}</nav><div className="userbar">{user?<button onClick={onLogout}><LogOut size={16}/> Logga ut</button>:<button onClick={()=>setActive('admin')}><KeyRound size={16}/> Login</button>}</div></header><main className="content">{children}<footer><span>MansHockey Enterprise 30</span><span>manshockey.com</span></footer></main></div>}
+export function Page({kicker,title,children,action}){return <section className="page"><div className="head"><div><span>{kicker}</span><h1>{title}</h1></div>{action}</div>{children}</section>}
+export function StatCard({icon,label,value,sub,onClick}){return <button className="stat-card" onClick={onClick}><div className="icon">{icon}</div><div><span>{label}</span><strong>{value}</strong>{sub&&<small>{sub}</small>}</div></button>}

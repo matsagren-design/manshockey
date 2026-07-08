@@ -1,31 +1,4 @@
-function json(data, status = 200, headers = {}) {
-  return new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json; charset=utf-8', ...headers } });
-}
-function getCookie(request, name) {
-  const cookie = request.headers.get('Cookie') || '';
-  const parts = cookie.split(';').map(x => x.trim());
-  for (const part of parts) {
-    const [k, ...v] = part.split('=');
-    if (k === name) return decodeURIComponent(v.join('='));
-  }
-  return null;
-}
-async function readBody(request) {
-  try { return await request.json(); } catch { return {}; }
-}
-
-export async function onRequestPost(context) {
-  try {
-    const body = await readBody(context.request);
-    const email = String(body.email || '').trim().toLowerCase();
-    const password = String(body.password || '');
-    if (!context.env.DB) return json({ ok:false, error:'D1 saknas' }, 500);
-    const user = await context.env.DB.prepare('SELECT * FROM users WHERE lower(email) = ? LIMIT 1').bind(email).first();
-    if (!user || user.password_hash !== password) return json({ ok:false, error:'Fel e-post eller lösenord' }, 401);
-    const sid = crypto.randomUUID();
-    const expires = new Date(Date.now() + 1000 * 60 * 60 * 24 * 14).toISOString();
-    await context.env.DB.prepare('INSERT INTO sessions (id, user_id, expires_at) VALUES (?, ?, ?)').bind(sid, user.id, expires).run();
-    const cookie = `mh_session=${encodeURIComponent(sid)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${60*60*24*14}`;
-    return json({ ok:true, user:{ id:user.id, email:user.email, name:user.name, role:user.role } }, 200, { 'Set-Cookie': cookie });
-  } catch (err) { return json({ ok:false, error:String(err) }, 500); }
-}
+function json(data,status=200,headers={}){return new Response(JSON.stringify(data),{status,headers:{'content-type':'application/json; charset=utf-8',...headers}})}
+function getCookie(request,name){const cookie=request.headers.get('Cookie')||'';for(const part of cookie.split(';').map(x=>x.trim())){const [k,...v]=part.split('=');if(k===name)return decodeURIComponent(v.join('='))}return null}
+async function readBody(request){try{return await request.json()}catch{return {}}}
+export async function onRequestPost(context){try{const body=await readBody(context.request);const email=String(body.email||'').trim().toLowerCase();const password=String(body.password||'');if(!context.env.DB)return json({ok:false,error:'D1 saknas'},500);const user=await context.env.DB.prepare('SELECT * FROM users WHERE lower(email)=? LIMIT 1').bind(email).first();if(!user||user.password_hash!==password)return json({ok:false,error:'Fel e-post eller lösenord'},401);const sid=crypto.randomUUID();const expires=new Date(Date.now()+1000*60*60*24*14).toISOString();await context.env.DB.prepare('INSERT INTO sessions (id,user_id,expires_at) VALUES (?,?,?)').bind(sid,user.id,expires).run();return json({ok:true,user:{id:user.id,email:user.email,name:user.name,role:user.role}},200,{'Set-Cookie':`mh_session=${encodeURIComponent(sid)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${60*60*24*14}`})}catch(err){return json({ok:false,error:String(err)},500)}}
