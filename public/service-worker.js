@@ -1,4 +1,4 @@
-const CACHE = 'manshockey-x-v8';
+const CACHE = 'manshockey-structured';
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(['/', '/manifest.webmanifest'])));
 });

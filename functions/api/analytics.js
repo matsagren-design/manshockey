@@ -1,8 +1,6 @@
-export async function onRequest(context) {
-  const fallback = {
-    points: [{label:'Sep', value:0},{label:'Okt', value:0},{label:'Nov', value:0},{label:'Dec', value:0}],
-    scout: [{label:'Defensiv', value:92},{label:'Förstapass', value:88},{label:'Boxplay', value:94},{label:'Fysik', value:90}],
-    summary: 'Analytics redo. Koppla D1 för säsongsdata.'
-  };
-  return Response.json(fallback);
+export async function onRequest() {
+  return Response.json({
+    points: [{label:'Sep',value:0},{label:'Okt',value:0},{label:'Nov',value:0},{label:'Dec',value:0}],
+    scout: [{label:'Defensiv',value:92},{label:'Förstapass',value:88},{label:'Boxplay',value:94},{label:'Fysik',value:90}]
+  });
 }

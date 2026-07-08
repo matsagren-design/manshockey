@@ -1,16 +1,14 @@
-# MansHockey X / Version 8
+# MansHockey Structured Platform
 
-Ny generationsplattform:
-- Live dashboard
-- AI Coach
-- Analytics
-- Matcharkiv
-- Media hub
-- Resecenter
-- Video/bild/dokumentcenter
-- CMS/Admin-grund
-- Cloudflare D1/R2/Access-plan
-- PWA-grund
+Det här paketet ersätter helsidesprototyperna med en mer modulär kodbas:
+
+- `src/components`
+- `src/pages`
+- `src/lib`
+- `src/data`
+- `functions/api`
+- `schema`
+- `docs`
 
 ## Cloudflare Pages
 - Framework preset: None
@@ -18,8 +16,7 @@ Ny generationsplattform:
 - Build output directory: dist
 
 ## Publicering
-1. Packa upp zippen.
+1. Packa upp.
 2. Kopiera innehållet till GitHub-mappen `manshockey`.
-3. Ersätt gamla filer.
-4. Commit: `MansHockey X v8`
-5. Push origin.
+3. Commit: `Structured platform`
+4. Push origin.
