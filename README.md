@@ -1,14 +1,12 @@
-# MansHockey 11 Admin CMS
+# MansHockey 12 Matchcenter
 
-Professionell adminpanel med sidomeny, CMS-tabeller och D1-CRUD.
-
-## Cloudflare Pages
-- Framework preset: None
-- Build command: npm install && npm run build
-- Build output directory: dist
+Version 12 lägger till ett riktigt Matchcenter.
 
 ## Publicering
 1. Packa upp.
 2. Kopiera innehållet till GitHub-mappen `manshockey`.
-3. Commit: `MansHockey 11 Admin CMS`
+3. Commit: `MansHockey 12 Matchcenter`
 4. Push origin.
+
+## Viktigt
+Kör `schema/d1_schema.sql` i D1 Console om nya kolumner saknas.

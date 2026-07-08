@@ -1,4 +1,4 @@
--- MansHockey 11 Admin CMS schema
+-- MansHockey 12 Matchcenter schema
 
 CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -24,9 +24,14 @@ CREATE TABLE IF NOT EXISTS matches (
   arena TEXT,
   city TEXT,
   tv_link TEXT,
+  map_url TEXT,
+  weather_note TEXT,
   result TEXT,
+  brooks_goals INTEGER,
+  opponent_goals INTEGER,
   report_before TEXT,
   report_after TEXT,
+  ai_summary TEXT,
   created_at TEXT DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
@@ -44,6 +49,7 @@ CREATE TABLE IF NOT EXISTS scout_reports (
 
 CREATE TABLE IF NOT EXISTS media_items (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
+  match_id INTEGER,
   title TEXT NOT NULL,
   source TEXT,
   url TEXT,
@@ -57,6 +63,7 @@ CREATE TABLE IF NOT EXISTS media_items (
 
 CREATE TABLE IF NOT EXISTS travel_watch (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
+  match_id INTEGER,
   origin TEXT DEFAULT 'ARN',
   destination TEXT DEFAULT 'YYC',
   airline TEXT,
@@ -71,6 +78,7 @@ CREATE TABLE IF NOT EXISTS travel_watch (
 
 CREATE TABLE IF NOT EXISTS documents (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
+  match_id INTEGER,
   title TEXT NOT NULL,
   category TEXT,
   note TEXT,

@@ -23,7 +23,7 @@ async function requireAdmin(context) {
   return user;
 }
 
-const fallback = [{"id": 1, "title": "Brooks Bandits", "source": "Brooks", "url": "https://www.brooksbandits.ca/", "tag": "Lag", "summary": "Klubbnyheter.", "media_type": "link"}];
+const fallback = [{"id": 1, "match_id": 1, "title": "FloHockey", "source": "FloHockey", "url": "https://www.flohockey.tv/", "tag": "Video", "summary": "Matchlänk.", "media_type": "video"}];
 export async function onRequestGet(context) {
   try {
     if (!context.env.DB) return json({ source:'fallback', items:fallback });
@@ -36,7 +36,7 @@ export async function onRequestPost(context) {
   if (!user) return json({ ok:false, error:'Unauthorized' }, 401);
   try {
     const body = await readBody(context.request);
-    const result = await context.env.DB.prepare('INSERT INTO media_items (title, source, url, tag, summary, media_type, published_at) VALUES (?, ?, ?, ?, ?, ?, ?)').bind(body.title ?? '', body.source ?? '', body.url ?? '', body.tag ?? '', body.summary ?? '', body.media_type ?? '', body.published_at ?? '').run();
+    const result = await context.env.DB.prepare('INSERT INTO media_items (match_id, title, source, url, tag, summary, media_type, published_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').bind(body.match_id ?? '', body.title ?? '', body.source ?? '', body.url ?? '', body.tag ?? '', body.summary ?? '', body.media_type ?? '', body.published_at ?? '').run();
     return json({ ok:true, action:'created', result });
   } catch (err) { return json({ ok:false, error:String(err) }, 500); }
 }
@@ -46,7 +46,7 @@ export async function onRequestPut(context) {
   try {
     const body = await readBody(context.request);
     if (!body.id) return json({ ok:false, error:'Missing id' }, 400);
-    const result = await context.env.DB.prepare('UPDATE media_items SET title = ?, source = ?, url = ?, tag = ?, summary = ?, media_type = ?, published_at = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(body.title ?? '', body.source ?? '', body.url ?? '', body.tag ?? '', body.summary ?? '', body.media_type ?? '', body.published_at ?? '', body.id).run();
+    const result = await context.env.DB.prepare('UPDATE media_items SET match_id = ?, title = ?, source = ?, url = ?, tag = ?, summary = ?, media_type = ?, published_at = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(body.match_id ?? '', body.title ?? '', body.source ?? '', body.url ?? '', body.tag ?? '', body.summary ?? '', body.media_type ?? '', body.published_at ?? '', body.id).run();
     return json({ ok:true, action:'updated', result });
   } catch (err) { return json({ ok:false, error:String(err) }, 500); }
 }

@@ -1,4 +1,4 @@
-const CACHE = 'manshockey-11-admin-cms';
+const CACHE = 'manshockey-12-matchcenter';
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(['/', '/manifest.webmanifest'])));
 });

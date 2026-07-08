@@ -23,7 +23,5 @@ export async function onRequest(context) {
     ).bind(sid).first();
     if (!row) return json({ ok:false, user:null });
     return json({ ok:true, user: row });
-  } catch (err) {
-    return json({ ok:false, user:null, error:String(err) });
-  }
+  } catch (err) { return json({ ok:false, user:null, error:String(err) }); }
 }

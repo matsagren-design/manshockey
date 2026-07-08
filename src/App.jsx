@@ -3,15 +3,16 @@ import { createRoot } from 'react-dom/client';
 import { Layout } from './components/Layout.jsx';
 import { Dashboard } from './pages/Dashboard.jsx';
 import { DataPage } from './pages/DataPage.jsx';
+import { MatchCenter } from './pages/MatchCenter.jsx';
 import { Analytics } from './pages/Analytics.jsx';
 import { AICoach } from './pages/AICoach.jsx';
 import { Admin } from './pages/Admin.jsx';
-import { Placeholder } from './pages/Placeholder.jsx';
 import { getItems, getJson, logout, me } from './lib/api.js';
 import './styles.css';
 
 function App() {
   const [active,setActive]=useState('dashboard');
+  const [selectedMatchId,setSelectedMatchId]=useState(null);
   const [user,setUser]=useState(null);
   const [health,setHealth]=useState({});
   const [analytics,setAnalytics]=useState({});
@@ -24,7 +25,7 @@ function App() {
   async function loadAll(){
     getJson('/api/health',{}).then(setHealth);
     getJson('/api/analytics',{}).then(setAnalytics);
-    getItems('matches',[]).then(setMatches);
+    getItems('matches',[]).then(items => { setMatches(items); if(!selectedMatchId && items[0]?.id) setSelectedMatchId(items[0].id); });
     getItems('scout',[]).then(setScout);
     getItems('media',[]).then(setMedia);
     getItems('travel',[]).then(setTravel);
@@ -34,14 +35,13 @@ function App() {
   async function handleLogout(){await logout();setUser(null);setActive('dashboard')}
 
   const pages={
-    dashboard:<Dashboard matches={matches} scout={scout} media={media} travel={travel} documents={documents} health={health} user={user} setActive={setActive}/>,
-    matches:<DataPage type="matches" kicker="Match CMS" title="Matcher" items={matches} setItems={setMatches} user={user} reload={loadAll}/>,
+    dashboard:<Dashboard matches={matches} scout={scout} media={media} travel={travel} documents={documents} health={health} user={user} setActive={setActive} setSelectedMatchId={setSelectedMatchId}/>,
+    matches:<DataPage type="matches" kicker="Match CMS" title="Matcher" items={matches} setItems={setMatches} user={user} reload={loadAll} setActive={setActive} setSelectedMatchId={setSelectedMatchId}/>,
+    matchcenter:<MatchCenter matches={matches} scout={scout} media={media} travel={travel} documents={documents} selectedMatchId={selectedMatchId} setSelectedMatchId={setSelectedMatchId} user={user} reload={loadAll}/>,
     media:<DataPage type="media" kicker="Media CMS" title="Media" items={media} setItems={setMedia} user={user} reload={loadAll}/>,
     scout:<DataPage type="scout" kicker="Scout CMS" title="Scout" items={scout} setItems={setScout} user={user} reload={loadAll}/>,
     travel:<DataPage type="travel" kicker="Travel CMS" title="Resor" items={travel} setItems={setTravel} user={user} reload={loadAll}/>,
     documents:<DataPage type="documents" kicker="Document CMS" title="Dokument" items={documents} setItems={setDocuments} user={user} reload={loadAll}/>,
-    calendar:<Placeholder kicker="Kalender" title="Familjekalender"><p>Kalendervyn är förberedd. Nästa steg är ICS-import, Google Calendar eller intern kalender i D1.</p></Placeholder>,
-    users:<Placeholder kicker="Användare" title="Användare och roller"><p>Roller är förberedda: Admin, Familj och Gäst. Nästa steg är användar-CMS och säkrare lösenord.</p></Placeholder>,
     analytics:<Analytics analytics={analytics}/>,
     ai:<AICoach/>,
     admin:<Admin user={user} onLogin={setUser} health={health}/>

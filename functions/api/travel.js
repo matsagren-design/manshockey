@@ -23,7 +23,7 @@ async function requireAdmin(context) {
   return user;
 }
 
-const fallback = [{"id": 1, "origin": "ARN", "destination": "YYC", "airline": "Air Canada", "max_price_sek": 10000, "depart_after": "09:30", "avoid_usa": 1, "note": "Bevaka utan USA-transit.", "status": "Bevakas"}];
+const fallback = [{"id": 1, "match_id": 1, "origin": "ARN", "destination": "YYC", "airline": "Air Canada", "max_price_sek": 10000, "depart_after": "09:30", "avoid_usa": 1, "note": "Bevaka utan USA-transit.", "status": "Bevakas"}];
 export async function onRequestGet(context) {
   try {
     if (!context.env.DB) return json({ source:'fallback', items:fallback });
@@ -36,7 +36,7 @@ export async function onRequestPost(context) {
   if (!user) return json({ ok:false, error:'Unauthorized' }, 401);
   try {
     const body = await readBody(context.request);
-    const result = await context.env.DB.prepare('INSERT INTO travel_watch (origin, destination, airline, max_price_sek, depart_after, avoid_usa, note, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').bind(body.origin ?? '', body.destination ?? '', body.airline ?? '', body.max_price_sek ?? '', body.depart_after ?? '', body.avoid_usa ?? '', body.note ?? '', body.status ?? '').run();
+    const result = await context.env.DB.prepare('INSERT INTO travel_watch (match_id, origin, destination, airline, max_price_sek, depart_after, avoid_usa, note, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(body.match_id ?? '', body.origin ?? '', body.destination ?? '', body.airline ?? '', body.max_price_sek ?? '', body.depart_after ?? '', body.avoid_usa ?? '', body.note ?? '', body.status ?? '').run();
     return json({ ok:true, action:'created', result });
   } catch (err) { return json({ ok:false, error:String(err) }, 500); }
 }
@@ -46,7 +46,7 @@ export async function onRequestPut(context) {
   try {
     const body = await readBody(context.request);
     if (!body.id) return json({ ok:false, error:'Missing id' }, 400);
-    const result = await context.env.DB.prepare('UPDATE travel_watch SET origin = ?, destination = ?, airline = ?, max_price_sek = ?, depart_after = ?, avoid_usa = ?, note = ?, status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(body.origin ?? '', body.destination ?? '', body.airline ?? '', body.max_price_sek ?? '', body.depart_after ?? '', body.avoid_usa ?? '', body.note ?? '', body.status ?? '', body.id).run();
+    const result = await context.env.DB.prepare('UPDATE travel_watch SET match_id = ?, origin = ?, destination = ?, airline = ?, max_price_sek = ?, depart_after = ?, avoid_usa = ?, note = ?, status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(body.match_id ?? '', body.origin ?? '', body.destination ?? '', body.airline ?? '', body.max_price_sek ?? '', body.depart_after ?? '', body.avoid_usa ?? '', body.note ?? '', body.status ?? '', body.id).run();
     return json({ ok:true, action:'updated', result });
   } catch (err) { return json({ ok:false, error:String(err) }, 500); }
 }

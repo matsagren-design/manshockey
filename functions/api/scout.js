@@ -23,7 +23,7 @@ async function requireAdmin(context) {
   return user;
 }
 
-const fallback = [{"id": 1, "category": "Defensivt spel", "score": 92, "note": "Stark framför mål.", "ai_comment": "Stabil defensiv profil."}];
+const fallback = [{"id": 1, "match_id": 1, "category": "Defensivt spel", "score": 92, "note": "Stark framför mål.", "ai_comment": "Stabil defensiv profil."}];
 export async function onRequestGet(context) {
   try {
     if (!context.env.DB) return json({ source:'fallback', items:fallback });

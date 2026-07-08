@@ -10,22 +10,27 @@ function useCountdown(date) {
   return { days: Math.floor(diff/86400000), hours: Math.floor(diff/3600000%24), minutes: Math.floor(diff/60000%60) };
 }
 
-export function Dashboard({ matches, scout, media, travel, documents, health, user, setActive }) {
+export function Dashboard({ matches, scout, media, travel, documents, health, user, setActive, setSelectedMatchId }) {
   const next = matches[0];
   const c = useCountdown(next?.game_date);
   const brooksTime = new Intl.DateTimeFormat('sv-SE', { hour:'2-digit', minute:'2-digit', timeZone:'America/Edmonton' }).format(new Date());
 
-  return <Page kicker="Admin CMS" title="Dashboard">
+  function openNext() {
+    if (next?.id) setSelectedMatchId(next.id);
+    setActive('matchcenter');
+  }
+
+  return <Page kicker="MansHockey 12" title="Matchcenter">
     <div className="dashboard-hero">
       <div>
-        <span className="pill">{user ? 'Inloggad admin' : 'Publikt läge'}</span>
+        <span className="pill">Nästa match</span>
         <h2>Brooks {next?.home_away === 'Hemma' ? 'vs' : '@'} {next?.opponent}</h2>
         <p><CalendarDays size={16}/> {formatDate(next?.game_date)} · {next?.arena}</p>
         <div className="count"><div><b>{c.days}</b><span>dagar</span></div><div><b>{c.hours}</b><span>tim</span></div><div><b>{c.minutes}</b><span>min</span></div></div>
       </div>
       <div className="quick-actions">
-        <button onClick={() => setActive('matches')}>Ny match</button>
-        <button onClick={() => setActive('media')}>Ny media</button>
+        <button onClick={openNext}>Öppna Matchcenter</button>
+        <button onClick={() => setActive('matches')}>Matcher</button>
         <button onClick={() => setActive('scout')}>Scout</button>
       </div>
     </div>

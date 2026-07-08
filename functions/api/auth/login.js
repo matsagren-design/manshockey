@@ -27,7 +27,5 @@ export async function onRequestPost(context) {
     await context.env.DB.prepare('INSERT INTO sessions (id, user_id, expires_at) VALUES (?, ?, ?)').bind(sid, user.id, expires).run();
     const cookie = `mh_session=${encodeURIComponent(sid)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${60*60*24*14}`;
     return json({ ok:true, user:{ id:user.id, email:user.email, name:user.name, role:user.role } }, 200, { 'Set-Cookie': cookie });
-  } catch (err) {
-    return json({ ok:false, error:String(err) }, 500);
-  }
+  } catch (err) { return json({ ok:false, error:String(err) }, 500); }
 }

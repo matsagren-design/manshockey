@@ -4,14 +4,14 @@ import { Page } from '../components/Layout.jsx';
 import { createItem, deleteItem, formatDate, updateItem } from '../lib/api.js';
 
 const configs = {
-  matches: { empty:{opponent:'',game_date:'',home_away:'Hemma',arena:'',city:'',tv_link:'',result:'',report_before:'',report_after:''}, titleField:'opponent', tagField:'home_away' },
+  matches: { empty:{opponent:'',game_date:'',home_away:'Hemma',arena:'',city:'',tv_link:'',map_url:'',weather_note:'',result:'',brooks_goals:'',opponent_goals:'',report_before:'',report_after:'',ai_summary:''}, titleField:'opponent', tagField:'home_away' },
   scout: { empty:{match_id:'',category:'',score:80,note:'',ai_comment:''}, titleField:'category', tagField:'score' },
-  media: { empty:{title:'',source:'',url:'',tag:'',summary:'',media_type:'link',published_at:''}, titleField:'title', tagField:'tag' },
-  travel: { empty:{origin:'ARN',destination:'YYC',airline:'',max_price_sek:10000,depart_after:'09:30',avoid_usa:1,note:'',status:'Bevakas'}, titleField:'airline', tagField:'status' },
-  documents: { empty:{title:'',category:'',note:'',file_key:'',url:'',status:'Aktiv'}, titleField:'title', tagField:'category' }
+  media: { empty:{match_id:'',title:'',source:'',url:'',tag:'',summary:'',media_type:'link',published_at:''}, titleField:'title', tagField:'tag' },
+  travel: { empty:{match_id:'',origin:'ARN',destination:'YYC',airline:'',max_price_sek:10000,depart_after:'09:30',avoid_usa:1,note:'',status:'Bevakas'}, titleField:'airline', tagField:'status' },
+  documents: { empty:{match_id:'',title:'',category:'',note:'',file_key:'',url:'',status:'Aktiv'}, titleField:'title', tagField:'category' }
 };
 
-export function DataPage({ type, title, kicker, items, setItems, user, reload }) {
+export function DataPage({ type, title, kicker, items, setItems, user, reload, setActive, setSelectedMatchId }) {
   const isAdmin = Boolean(user?.role === 'admin');
   const config = configs[type];
   const [form, setForm] = useState(config.empty);
@@ -21,6 +21,7 @@ export function DataPage({ type, title, kicker, items, setItems, user, reload })
 
   function startCreate(){setEditing(null);setForm(config.empty);setTimeout(()=>document.getElementById(type+'-form')?.scrollIntoView({behavior:'smooth'}),50)}
   function startEdit(item){setEditing(item.id);setForm({...config.empty,...item});setTimeout(()=>document.getElementById(type+'-form')?.scrollIntoView({behavior:'smooth'}),50)}
+  function openMatch(item){ if(type === 'matches'){ setSelectedMatchId?.(item.id); setActive?.('matchcenter'); } }
   async function submit(e){
     e.preventDefault();
     if(!isAdmin){setMessage('Logga in som admin först.');return}
@@ -42,7 +43,7 @@ export function DataPage({ type, title, kicker, items, setItems, user, reload })
         <table>
           <thead><tr><th>Titel</th><th>Typ</th><th>Datum/Info</th><th></th></tr></thead>
           <tbody>{items.map((item,idx)=><tr key={item.id||idx}>
-            <td><strong>{item[config.titleField] || 'Post'}</strong><small>{item.summary || item.note || item.arena || item.url}</small></td>
+            <td><button className="link-button" onClick={()=>openMatch(item)}><strong>{item[config.titleField] || 'Post'}</strong></button><small>{item.summary || item.note || item.arena || item.url}</small></td>
             <td><span className="tag">{item[config.tagField] || 'Post'}</span></td>
             <td>{item.game_date ? formatDate(item.game_date) : (item.status || item.source || item.airline || '—')}</td>
             <td>{isAdmin && <div className="row-actions compact"><button onClick={()=>startEdit(item)}><Edit3 size={15}/></button><button className="danger" onClick={()=>remove(item)}><Trash2 size={15}/></button></div>}{item.url && <a href={item.url} target="_blank" rel="noreferrer"><ExternalLink size={15}/></a>}</td>

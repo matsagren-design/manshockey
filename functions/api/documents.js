@@ -23,7 +23,7 @@ async function requireAdmin(context) {
   return user;
 }
 
-const fallback = [{"id": 1, "title": "Pass", "category": "Resa", "note": "Kopia och giltighet.", "status": "Aktiv"}];
+const fallback = [{"id": 1, "match_id": 1, "title": "Matchrapport", "category": "Rapport", "note": "PDF/export förberett.", "status": "Aktiv"}];
 export async function onRequestGet(context) {
   try {
     if (!context.env.DB) return json({ source:'fallback', items:fallback });
@@ -36,7 +36,7 @@ export async function onRequestPost(context) {
   if (!user) return json({ ok:false, error:'Unauthorized' }, 401);
   try {
     const body = await readBody(context.request);
-    const result = await context.env.DB.prepare('INSERT INTO documents (title, category, note, file_key, url, status) VALUES (?, ?, ?, ?, ?, ?)').bind(body.title ?? '', body.category ?? '', body.note ?? '', body.file_key ?? '', body.url ?? '', body.status ?? '').run();
+    const result = await context.env.DB.prepare('INSERT INTO documents (match_id, title, category, note, file_key, url, status) VALUES (?, ?, ?, ?, ?, ?, ?)').bind(body.match_id ?? '', body.title ?? '', body.category ?? '', body.note ?? '', body.file_key ?? '', body.url ?? '', body.status ?? '').run();
     return json({ ok:true, action:'created', result });
   } catch (err) { return json({ ok:false, error:String(err) }, 500); }
 }
@@ -46,7 +46,7 @@ export async function onRequestPut(context) {
   try {
     const body = await readBody(context.request);
     if (!body.id) return json({ ok:false, error:'Missing id' }, 400);
-    const result = await context.env.DB.prepare('UPDATE documents SET title = ?, category = ?, note = ?, file_key = ?, url = ?, status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(body.title ?? '', body.category ?? '', body.note ?? '', body.file_key ?? '', body.url ?? '', body.status ?? '', body.id).run();
+    const result = await context.env.DB.prepare('UPDATE documents SET match_id = ?, title = ?, category = ?, note = ?, file_key = ?, url = ?, status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(body.match_id ?? '', body.title ?? '', body.category ?? '', body.note ?? '', body.file_key ?? '', body.url ?? '', body.status ?? '', body.id).run();
     return json({ ok:true, action:'updated', result });
   } catch (err) { return json({ ok:false, error:String(err) }, 500); }
 }

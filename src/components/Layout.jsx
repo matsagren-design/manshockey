@@ -1,33 +1,32 @@
 import React from 'react';
-import { BarChart3, BookOpen, Bot, CalendarDays, FileText, Home, KeyRound, LogOut, Newspaper, Plane, Settings, Target, UploadCloud, Users } from 'lucide-react';
+import { BarChart3, BookOpen, Bot, CalendarDays, FileText, Home, KeyRound, LogOut, Newspaper, Plane, Settings, Target, Users } from 'lucide-react';
 
 export const tabs = [
   ['dashboard','Dashboard',Home],
   ['matches','Matcher',BookOpen],
+  ['matchcenter','Matchcenter',CalendarDays],
   ['media','Media',Newspaper],
   ['scout','Scout',Target],
   ['travel','Resor',Plane],
   ['documents','Dokument',FileText],
-  ['calendar','Kalender',CalendarDays],
-  ['users','Användare',Users],
   ['analytics','Analytics',BarChart3],
   ['ai','AI Coach',Bot],
-  ['admin','Inställningar',Settings]
+  ['admin','Admin',Settings]
 ];
 
 export function Layout({ active, setActive, user, onLogout, children }) {
   return <div className="shell">
     <aside className="sidebar">
       <div className="brand" onClick={() => setActive('dashboard')}>
-        <div className="mark">M11</div>
-        <div><strong>MansHockey</strong><span>Admin CMS</span></div>
+        <div className="mark">M12</div>
+        <div><strong>MansHockey</strong><span>Matchcenter</span></div>
       </div>
       <nav>{tabs.map(([id,label,Icon]) => <button key={id} className={active===id?'active':''} onClick={() => setActive(id)}><Icon size={18}/>{label}</button>)}</nav>
       <div className="side-user">
         {user ? <><span>{user.name || user.email}</span><button onClick={onLogout}><LogOut size={16}/> Logga ut</button></> : <button onClick={() => setActive('admin')}><KeyRound size={16}/> Logga in</button>}
       </div>
     </aside>
-    <main className="content">{children}<footer><span>MansHockey 11 · manshockey.com</span><span>Admin CMS</span></footer></main>
+    <main className="content">{children}<footer><span>MansHockey 12 · manshockey.com</span><span>Matchcenter</span></footer></main>
   </div>
 }
 

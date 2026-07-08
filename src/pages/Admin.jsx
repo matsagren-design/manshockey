@@ -5,7 +5,7 @@ import { LoginPage } from './Login.jsx';
 
 export function Admin({ user, onLogin, health }) {
   if (!user) return <LoginPage onLogin={onLogin}/>;
-  return <Page kicker="Inställningar" title="Admin och drift">
+  return <Page kicker="Admin" title="Inställningar">
     <div className="grid">
       <article className="tile"><KeyRound/><h3>Inloggad</h3><p>{user.name || user.email} · {user.role}</p></article>
       <article className="tile"><Database/><h3>D1</h3><p>Status: {health?.d1 ? 'aktiv' : 'ej kopplad'}.</p></article>
