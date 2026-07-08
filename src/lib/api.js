@@ -22,6 +22,4 @@ export function formatDate(date) {
   if (!date) return '—';
   return new Intl.DateTimeFormat('sv-SE', { weekday:'short', day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' }).format(new Date(date));
 }
-export function isSameMatch(item, matchId) {
-  return String(item.match_id || '') === String(matchId || '');
-}
+export function isSameMatch(item, matchId) { return String(item.match_id || '') === String(matchId || ''); }

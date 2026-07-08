@@ -23,11 +23,11 @@ async function requireAdmin(context) {
   return user;
 }
 
-const fallback = [{"id": 1, "opponent": "Spruce Grove Saints", "game_date": "2026-09-09T03:00:00+02:00", "home_away": "Hemma", "arena": "Centennial Regional Arena", "city": "Brooks", "tv_link": "https://www.flohockey.tv/", "report_before": "Fokus på enkel puckhantering.", "ai_summary": "Enterprise 2026 redo.", "game_status": "Kommande"}];
+const fallback = [{"id": 1, "title": "Kontrollera försäkring", "owner": "Familjen", "due_date": "", "status": "Öppen", "note": "BCHL + svensk försäkring."}];
 export async function onRequestGet(context) {
   try {
     if (!context.env.DB) return json({ source:'fallback', items:fallback });
-    const { results } = await context.env.DB.prepare('SELECT * FROM matches ORDER BY game_date ASC LIMIT 500').all();
+    const { results } = await context.env.DB.prepare('SELECT * FROM family_tasks ORDER BY id DESC LIMIT 500').all();
     return json({ source:'d1', items:results });
   } catch (err) {
     return json({ source:'fallback-error', error:String(err), items:fallback });
@@ -38,7 +38,7 @@ export async function onRequestPost(context) {
   if (!user) return json({ ok:false, error:'Unauthorized' }, 401);
   try {
     const body = await readBody(context.request);
-    const result = await context.env.DB.prepare('INSERT INTO matches (opponent, game_date, home_away, arena, city, tv_link, map_url, weather_note, result, brooks_goals, opponent_goals, report_before, report_after, ai_summary, game_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(body.opponent ?? '', body.game_date ?? '', body.home_away ?? '', body.arena ?? '', body.city ?? '', body.tv_link ?? '', body.map_url ?? '', body.weather_note ?? '', body.result ?? '', body.brooks_goals ?? '', body.opponent_goals ?? '', body.report_before ?? '', body.report_after ?? '', body.ai_summary ?? '', body.game_status ?? '').run();
+    const result = await context.env.DB.prepare('INSERT INTO family_tasks (title, owner, due_date, status, note) VALUES (?, ?, ?, ?, ?)').bind(body.title ?? '', body.owner ?? '', body.due_date ?? '', body.status ?? '', body.note ?? '').run();
     return json({ ok:true, action:'created', result });
   } catch (err) { return json({ ok:false, error:String(err) }, 500); }
 }
@@ -48,7 +48,7 @@ export async function onRequestPut(context) {
   try {
     const body = await readBody(context.request);
     if (!body.id) return json({ ok:false, error:'Missing id' }, 400);
-    const result = await context.env.DB.prepare('UPDATE matches SET opponent = ?, game_date = ?, home_away = ?, arena = ?, city = ?, tv_link = ?, map_url = ?, weather_note = ?, result = ?, brooks_goals = ?, opponent_goals = ?, report_before = ?, report_after = ?, ai_summary = ?, game_status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(body.opponent ?? '', body.game_date ?? '', body.home_away ?? '', body.arena ?? '', body.city ?? '', body.tv_link ?? '', body.map_url ?? '', body.weather_note ?? '', body.result ?? '', body.brooks_goals ?? '', body.opponent_goals ?? '', body.report_before ?? '', body.report_after ?? '', body.ai_summary ?? '', body.game_status ?? '', body.id).run();
+    const result = await context.env.DB.prepare('UPDATE family_tasks SET title = ?, owner = ?, due_date = ?, status = ?, note = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(body.title ?? '', body.owner ?? '', body.due_date ?? '', body.status ?? '', body.note ?? '', body.id).run();
     return json({ ok:true, action:'updated', result });
   } catch (err) { return json({ ok:false, error:String(err) }, 500); }
 }
@@ -59,7 +59,7 @@ export async function onRequestDelete(context) {
     const url = new URL(context.request.url);
     const id = url.searchParams.get('id');
     if (!id) return json({ ok:false, error:'Missing id' }, 400);
-    const result = await context.env.DB.prepare('DELETE FROM matches WHERE id = ?').bind(id).run();
+    const result = await context.env.DB.prepare('DELETE FROM family_tasks WHERE id = ?').bind(id).run();
     return json({ ok:true, action:'deleted', result });
   } catch (err) { return json({ ok:false, error:String(err) }, 500); }
 }

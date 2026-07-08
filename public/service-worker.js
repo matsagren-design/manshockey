@@ -1,4 +1,4 @@
-const CACHE = 'manshockey-enterprise-13';
+const CACHE = 'manshockey-enterprise-2026';
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(['/', '/manifest.webmanifest'])));
 });

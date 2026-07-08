@@ -4,8 +4,13 @@ export async function onRequest(context) {
       const matches = await context.env.DB.prepare('SELECT COUNT(*) AS count FROM matches').first();
       const scout = await context.env.DB.prepare('SELECT AVG(score) AS avg_score FROM scout_reports').first();
       const media = await context.env.DB.prepare('SELECT COUNT(*) AS count FROM media_items').first();
+      const travel = await context.env.DB.prepare('SELECT COUNT(*) AS count FROM travel_watch').first();
       return Response.json({
-        points: [{label:'Matcher', value:Number(matches?.count || 0)}, {label:'Media', value:Number(media?.count || 0)}],
+        points: [
+          {label:'Matcher', value:Number(matches?.count || 0)},
+          {label:'Media', value:Number(media?.count || 0)},
+          {label:'Resor', value:Number(travel?.count || 0)}
+        ],
         scout: [{label:'Scoutsnitt', value:Math.round(Number(scout?.avg_score || 0)) || 0}]
       });
     }

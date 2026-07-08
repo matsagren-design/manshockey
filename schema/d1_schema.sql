@@ -1,5 +1,3 @@
--- MansHockey Enterprise 13 schema
-
 CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   email TEXT UNIQUE NOT NULL,
@@ -90,7 +88,18 @@ CREATE TABLE IF NOT EXISTS documents (
   updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
--- Kör dessa manuellt om tabellen redan fanns och saknar kolumner:
+CREATE TABLE IF NOT EXISTS family_tasks (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  title TEXT NOT NULL,
+  owner TEXT,
+  due_date TEXT,
+  status TEXT DEFAULT 'Öppen',
+  note TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Kör bara vid behov om befintliga tabeller saknar nya kolumner:
 -- ALTER TABLE matches ADD COLUMN map_url TEXT;
 -- ALTER TABLE matches ADD COLUMN weather_note TEXT;
 -- ALTER TABLE matches ADD COLUMN brooks_goals INTEGER;
