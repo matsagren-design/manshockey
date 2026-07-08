@@ -1,1 +1,1 @@
-{"scripts":{"build":"echo Static app - no build required","deploy":"wrangler pages deploy . --project-name=manshockey"},"dependencies":{},"devDependencies":{}}
+{"scripts":{"build":"echo static app"},"dependencies":{},"devDependencies":{}}

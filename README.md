@@ -1,36 +1,19 @@
-# MansHockey Pro X
+# MansHockey Ultimate
 
-Stor appversion med:
+Nästa version av familjeappen med Dashboard, Matchcenter, Livecenter, Scout Center, Resor, Media, Familj, Dokument, Karta, AI-assistent och Admin.
 
-- Dashboard
-- Matchcenter med inför/efterrapporter
-- Livecenter
-- Scout Center
-- Resecenter/flygbevakning
-- Media Watch
-- Familjeportal
-- Pushnotis-demo
-- AI-assistent-demo
-- Adminläge
-- Cloudflare Functions: `/api/media`, `/api/flights`, `/api/match-report`
-
-## Så uppdaterar du GitHub
-
+## Lägg in i GitHub
 1. Packa upp ZIP-filen.
-2. Kopiera innehållet till din GitHub-mapp `manshockey`.
+2. Kopiera innehållet till din lokala GitHub-mapp `manshockey`.
 3. Ersätt befintliga filer.
-4. GitHub Desktop visar ändringar.
-5. Commit-meddelande: `MansHockey Pro X`.
-6. Klicka `Commit to main` och sedan `Push origin`.
-7. Cloudflare bygger automatiskt och uppdaterar manshockey.com.
+4. I GitHub Desktop: skriv commit `MansHockey Ultimate`.
+5. Klicka Commit och Push origin.
+6. Cloudflare uppdaterar manshockey.com automatiskt.
 
-## Cloudflare-inställningar
+## Cloudflare
+Detta är fortfarande en statisk app med Functions. Build command kan vara tomt eller `npm run build`. Output directory `/`.
 
-Nuvarande statiska inställning fungerar:
-- Framework preset: None
-- Build command: tomt
-- Build output directory: `/`
-
-## Viktigt
-
-Flygpriser, live-resultat och riktiga pushnotiser kräver externa API:er/nycklar och Workers-konfiguration. Appen har färdiga platser/API-stubbar för detta.
+## Nästa datakällor
+- `/api/media` för mediabevakning
+- `/api/flights` för flygbevakning
+- `/api/weather` för Brooks-väder
