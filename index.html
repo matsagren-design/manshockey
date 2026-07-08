@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>Måns Hockey</title>
+  <meta name="theme-color" content="#f5c542" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="Måns Hockey" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="/assets/icon-192.png" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="hero">
+      <nav class="topbar">
+        <div class="brand"><img src="/assets/icon-192.png" alt=""/><span>Måns Hockey</span></div>
+        <button id="installBtn" class="ghost hidden">Installera</button>
+      </nav>
+      <section class="hero-grid">
+        <div>
+          <p class="eyebrow">Brooks Bandits 2026/27</p>
+          <h1>Måns Hockey 2.0 – familjens hockeycentral</h1>
+          <p class="lead">Matchcenter, flygresor, mediabevakning, scouttracker och familjeplanering – samlat på manshockey.com.</p>
+          <div class="actions">
+            <a class="primary" href="/mans_bchl_2026_27_calendar.ics">Ladda ner kalender</a>
+            <button class="secondary" data-tab="schedule">Visa spelschema</button>
+          </div>
+        </div>
+        <div class="next-card glass">
+          <span class="label">Nästa match</span>
+          <h2 id="nextTitle">Laddar...</h2>
+          <p id="nextMeta"></p>
+          <div id="countdown" class="countdown"></div>
+        </div>
+      </section>
+    </header>
+    <main>
+      <section class="quick-stats">
+        <div class="glass stat"><span>Matcher</span><strong id="statGames">–</strong></div>
+        <div class="glass stat"><span>Hemma</span><strong id="statHome">–</strong></div>
+        <div class="glass stat"><span>Borta</span><strong id="statAway">–</strong></div>
+        <div class="glass stat"><span>Brooks nu</span><strong id="brooksTime">–</strong></div>
+      </section>
+      <div class="tabs" role="tablist">
+        <button class="tab active" data-tab="home">Hem</button>
+        <button class="tab" data-tab="schedule">Matcher</button>
+        <button class="tab" data-tab="player">Måns</button>
+        <button class="tab" data-tab="travel">Resor</button>
+        <button class="tab" data-tab="flights">Flygresor</button>
+        <button class="tab" data-tab="scout">Scout</button>
+        <button class="tab" data-tab="reports">Matchrapporter</button>
+        <button class="tab" data-tab="media">Media</button>
+        <button class="tab" data-tab="family">Familj</button>
+        <button class="tab" data-tab="admin">Admin</button>
+        <button class="tab" data-tab="install">Installera</button>
+      </div>
+      <section id="home" class="panel active"><div class="section-head"><h2>Översikt</h2><p>Snabb koll inför nästa match.</p></div><div id="upcoming" class="cards"></div></section>
+      <section id="schedule" class="panel"><div class="section-head"><h2>Spelschema</h2><p>Alla matcher omräknade till svensk tid.</p></div><div class="filters"><input id="search" placeholder="Sök motståndare/arena"/><select id="filter"><option value="all">Alla</option><option value="Hemma">Hemma</option><option value="Borta">Borta</option><option value="Hög">Hög scout</option></select></div><div class="table-wrap"><table><thead><tr><th>Svensk tid</th><th>Match</th><th>H/B</th><th>Arena</th><th>Scout</th></tr></thead><tbody id="scheduleRows"></tbody></table></div></section>
+      <section id="player" class="panel"><div class="section-head"><h2>Måns statistik</h2><p>Fylls manuellt efter matcher och sparas i telefonen.</p></div><form id="statsForm" class="glass form-grid"><label>Matcher<input name="gp" type="number" min="0"></label><label>Mål<input name="g" type="number" min="0"></label><label>Assist<input name="a" type="number" min="0"></label><label>Plus/minus<input name="pm" type="number"></label><label>Utvisningsmin<input name="pim" type="number" min="0"></label><label>Anteckning<input name="note" type="text" placeholder="T.ex. stark i PK"></label><button class="primary" type="submit">Spara statistik</button></form><div id="playerSummary" class="cards"></div></section>
+      <section id="travel" class="panel"><div class="section-head"><h2>Resor</h2><p>Bortamatcher och praktiska länkar.</p></div><div id="travelCards" class="cards"></div></section>
+      <section id="scout" class="panel"><div class="section-head"><h2>Scouttracker</h2><p>Matcher att hålla extra koll på.</p></div><div id="scoutCards" class="cards"></div></section>
+
+      <section id="flights" class="panel">
+        <div class="section-head">
+          <div><h2>Flygresor</h2><p>Sök och bevaka resor mellan Arlanda och Calgary med Air Canada, KLM och Finnair.</p></div>
+          <button id="saveFlightWatch" class="secondary">Spara bevakning</button>
+        </div>
+        <form id="flightForm" class="glass form-grid">
+          <label>Från<input name="from" value="ARN" placeholder="ARN"></label>
+          <label>Till<input name="to" value="YYC" placeholder="YYC"></label>
+          <label>Avresa<input name="depart" type="date"></label>
+          <label>Hemresa, valfritt<input name="return" type="date"></label>
+          <label>Maxpris SEK<input name="maxPrice" type="number" value="10000" min="0"></label>
+          <label>Tidigaste avgång<input name="notBefore" type="time" value="09:30"></label>
+          <label class="check"><input name="oneWay" type="checkbox" checked> Enkel resa</label>
+          <label class="check"><input name="noUs" type="checkbox" checked> Undvik mellanlandning i USA</label>
+          <label class="check"><input name="shortTravel" type="checkbox" checked> Prioritera kort restid</label>
+          <label class="check"><input name="airCanada" type="checkbox" checked> Air Canada</label>
+          <label class="check"><input name="klm" type="checkbox" checked> KLM</label>
+          <label class="check"><input name="finnair" type="checkbox" checked> Finnair</label>
+          <button class="primary" type="submit">Skapa flygsökning</button>
+        </form>
+        <div class="glass instructions">
+          <h3>Sökprincip</h3>
+          <p>Appen öppnar aktuella sökningar hos publika flygsökmotorer och respektive flygbolag. För levande priser och automatiska prisnotiser krävs senare en flyg-API-koppling, exempelvis Amadeus/Skyscanner/Kiwi.</p>
+        </div>
+        <div id="flightSearchLinks" class="cards"></div>
+        <div class="section-head mini"><h3>Sparade flygbevakningar</h3></div>
+        <div id="flightWatchCards" class="cards"></div>
+      </section>
+
+      <section id="reports" class="panel">
+        <div class="section-head">
+          <div><h2>Matchrapporter</h2><p>Inför- och efterrapporter för varje match. Sparas lokalt på enheten.</p></div>
+          <button id="newReportFromNext" class="secondary">Skapa för nästa match</button>
+        </div>
+        <div class="filters">
+          <select id="reportMatchSelect"></select>
+          <select id="reportType">
+            <option value="pre">Inför match</option>
+            <option value="post">Efter match</option>
+          </select>
+          <button id="loadReport" class="secondary">Öppna</button>
+        </div>
+        <div id="reportPreview" class="glass report-preview"></div>
+        <form id="reportForm" class="glass report-form">
+          <label>Rubrik<input name="title" type="text" placeholder="Inför: Brooks Bandits vs ..."></label>
+          <label>Resultat / status<input name="result" type="text" placeholder="T.ex. 4–2 eller Matchstart 03:00 svensk tid"></label>
+          <label>Måns notering<input name="mans" type="text" placeholder="T.ex. PK, fysiskt spel, plus/minus, poäng"></label>
+          <label>Tre saker att hålla koll på<textarea name="focus" placeholder="1. ...
+2. ...
+3. ..."></textarea></label>
+          <label>Matchsammanfattning<textarea name="summary" placeholder="Kort sammanfattning inför eller efter matchen"></textarea></label>
+          <label>Länkar<textarea name="links" placeholder="BCHL matchcenter, Brooks rapport, FloHockey, highlights"></textarea></label>
+          <div class="actions"><button class="primary" type="submit">Spara rapport</button><button id="copyReport" class="secondary" type="button">Kopiera text</button></div>
+        </form>
+        <div class="section-head mini"><h3>Sparade rapporter</h3></div>
+        <div id="savedReports" class="cards"></div>
+      </section>
+      <section id="media" class="panel"><div class="section-head"><div><h2>Mediabevakning</h2><p>Regelbunden sökning efter Måns i media och på webben.</p></div><button id="refreshMedia" class="secondary">Sök nu</button></div><div class="glass instructions"><h3>Bevakade sökningar</h3><p><strong>“Måns Ågren”</strong>, <strong>“Mans Agren”</strong>, <strong>“Måns Agren”</strong>, <strong>“Brooks Bandits Måns”</strong> och <strong>“BCHL Måns Ågren”</strong>.</p><p class="muted">När appen är publicerad på Cloudflare kan /api/media hämta Google News RSS via Cloudflare Pages Function. För helt automatisk daglig kontroll finns även Cloudflare Worker-kod i paketet.</p><div class="actions"><a class="primary" target="_blank" href="https://www.google.com/search?q=%22M%C3%A5ns+%C3%85gren%22">Google</a><a class="secondary" target="_blank" href="https://news.google.com/search?q=%22M%C3%A5ns%20%C3%85gren%22%20OR%20%22Mans%20Agren%22">Google News</a><a class="secondary" target="_blank" href="https://www.eliteprospects.com/search?q=M%C3%A5ns%20%C3%85gren">EliteProspects</a></div></div><div id="mediaStatus" class="media-status"></div><div id="mediaCards" class="cards"></div></section>
+      <section id="family" class="panel"><div class="section-head"><h2>Familjeanteckningar</h2><p>Lokala anteckningar på den här enheten.</p></div><textarea id="familyNotes" class="notes" placeholder="Skriv packlista, reseidéer, länkar, kontaktuppgifter..."></textarea><button id="saveNotes" class="primary">Spara anteckningar</button></section>
+
+      <section id="admin" class="panel">
+        <div class="section-head"><h2>Admin & publicering</h2><p>Verktyg för nästa utvecklingssteg.</p></div>
+        <div class="cards">
+          <article class="card"><span class="pill">Cloudflare</span><h3>Publicera uppdatering</h3><p>Kör från projektmappen:</p><pre>npx wrangler pages deploy . --project-name=manshockey</pre></article>
+          <article class="card"><span class="pill">Nästa steg</span><h3>Delad databas</h3><p>För att dela statistik, rapporter och anteckningar mellan familjens telefoner kopplar vi Cloudflare D1 eller Supabase.</p></article>
+          <article class="card"><span class="pill">Live-data</span><h3>API-kopplingar</h3><p>/api/media är klar. /api/flights är förberedd men kräver API-nyckel för riktiga flygpriser. Matchresultat kan senare hämtas från BCHL när en stabil källa finns.</p></article>
+        </div>
+      </section>
+      <section id="install" class="panel"><div class="section-head"><h2>Lägg till på hemskärmen</h2></div><div class="glass instructions"><h3>iPhone</h3><p>Öppna <strong>https://manshockey.com</strong> i Safari → tryck på Dela → välj <strong>Lägg till på hemskärmen</strong>.</p><h3>Android</h3><p>Öppna sidan i Chrome → tryck på menyn → <strong>Installera app</strong> eller <strong>Lägg till på startskärmen</strong>.</p><h3>Cloudflare Pages</h3><p>Ladda upp hela innehållet i den här mappen som statiska filer. Koppla sedan custom domain <strong>manshockey.com</strong>.</p></div></section>
+    </main>
+  </div>
+  <script src="/app.js"></script>
+</body>
+</html>

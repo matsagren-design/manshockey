@@ -1,0 +1,502 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Mans BCHL Parent Portal//SV
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+X-WR-CALNAME:Måns BCHL 2026-27
+BEGIN:VEVENT
+UID:e5d80e453946e5f287a89853ba95f314@mans-bchl
+DTSTAMP:20260707T172607Z
+DTSTART:20260909T010000Z
+DTEND:20260909T033000Z
+SUMMARY:Brooks Bandits vs Spruce Grove Saints
+LOCATION:CRA
+DESCRIPTION:Alberta-tid: 19:00\\nSvensk tid: 2026-09-09 03:00\\nArena: CRA\\nScoutmarkering: Försäsong\\nNotering: Försäsong/enligt bild
+END:VEVENT
+BEGIN:VEVENT
+UID:a7573957cc39e04f3389dfb43bef66df@mans-bchl
+DTSTAMP:20260707T172607Z
+DTSTART:20260912T010500Z
+DTEND:20260912T033500Z
+SUMMARY:Brooks Bandits @ Okotoks Oilers
+LOCATION:Viking Rentals Centre
+DESCRIPTION:Alberta-tid: 19:05\\nSvensk tid: 2026-09-12 03:05\\nArena: Viking Rentals Centre\\nScoutmarkering: Försäsong\\nNotering: Försäsong/enligt bild
+END:VEVENT
+BEGIN:VEVENT
+UID:1294728859870ae5c80d2dfaa81e14ab@mans-bchl
+DTSTAMP:20260707T172607Z
+DTSTART:20260913T010000Z
+DTEND:20260913T033000Z
+SUMMARY:Brooks Bandits vs Okotoks Oilers
+LOCATION:CRA
+DESCRIPTION:Alberta-tid: 19:00\\nSvensk tid: 2026-09-13 03:00\\nArena: CRA\\nScoutmarkering: Försäsong\\nNotering: Försäsong/enligt bild
+END:VEVENT
+BEGIN:VEVENT
+UID:14260ded1a91de0002418db1bceb6a74@mans-bchl
+DTSTAMP:20260707T172607Z
+DTSTART:20260919T010000Z
+DTEND:20260919T033000Z
+SUMMARY:Brooks Bandits @ Blackfalds Bulldogs
+LOCATION:Eagle Builders Centre
+DESCRIPTION:Alberta-tid: 19:00\\nSvensk tid: 2026-09-19 03:00\\nArena: Eagle Builders Centre\\nScoutmarkering: Hög\\nNotering: 
+END:VEVENT
+BEGIN:VEVENT
+UID:55467071670dce849de29d9465bf1edd@mans-bchl
+DTSTAMP:20260707T172607Z
+DTSTART:20260920T010000Z
+DTEND:20260920T033000Z
+SUMMARY:Brooks Bandits vs Okotoks Oilers
+LOCATION:CRA
+DESCRIPTION:Alberta-tid: 19:00\\nSvensk tid: 2026-09-20 03:00\\nArena: CRA\\nScoutmarkering: Hög\\nNotering: 
+END:VEVENT
+BEGIN:VEVENT
+UID:1a46222cef0ba262373701537cfe61ed@mans-bchl
+DTSTAMP:20260707T172607Z
+DTSTART:20260926T010000Z
+DTEND:20260926T033000Z
+SUMMARY:Brooks Bandits vs Spruce Grove Saints
+LOCATION:CRA
+DESCRIPTION:Alberta-tid: 19:00\\nSvensk tid: 2026-09-26 03:00\\nArena: CRA\\nScoutmarkering: Hög\\nNotering: 
+END:VEVENT
+BEGIN:VEVENT
+UID:cc54dd1935adda38ff48823499547361@mans-bchl
+DTSTAMP:20260707T172607Z
+DTSTART:20260927T010000Z
+DTEND:20260927T033000Z
+SUMMARY:Brooks Bandits vs Sherwood Park Crusaders
+LOCATION:CRA
+DESCRIPTION:Alberta-tid: 19:00\\nSvensk tid: 2026-09-27 03:00\\nArena: CRA\\nScoutmarkering: Hög\\nNotering: 
+END:VEVENT
+BEGIN:VEVENT
+UID:86af5a79241f93222823246475b105a7@mans-bchl
+DTSTAMP:20260707T172607Z
+DTSTART:20261001T010000Z
+DTEND:20261001T033000Z
+SUMMARY:Brooks Bandits @ Sherwood Park Crusaders
+LOCATION:Sherwood Park Arena
+DESCRIPTION:Alberta-tid: 19:00\\nSvensk tid: 2026-10-01 03:00\\nArena: Sherwood Park Arena\\nScoutmarkering: Hög\\nNotering: 
+END:VEVENT
+BEGIN:VEVENT
+UID:e656ccfe822de8d87ddcf598ecc7499c@mans-bchl
+DTSTAMP:20260707T172607Z
+DTSTART:20261010T010000Z
+DTEND:20261010T033000Z
+SUMMARY:Brooks Bandits vs Alberni Valley Bulldogs
+LOCATION:CRA
+DESCRIPTION:Alberta-tid: 19:00\\nSvensk tid: 2026-10-10 03:00\\nArena: CRA\\nScoutmarkering: Medel\\nNotering: 
+END:VEVENT
+BEGIN:VEVENT
+UID:32f6b418be9c733617f0564a2133dcf5@mans-bchl
+DTSTAMP:20260707T172607Z
+DTSTART:20261011T010500Z
+DTEND:20261011T033500Z
+SUMMARY:Brooks Bandits @ Okotoks Oilers
+LOCATION:Viking Rentals Centre
+DESCRIPTION:Alberta-tid: 19:05\\nSvensk tid: 2026-10-11 03:05\\nArena: Viking Rentals Centre\\nScoutmarkering: Hög\\nNotering: 
+END:VEVENT
+BEGIN:VEVENT
+UID:f755453706ff71d30d0d110cbcfb692d@mans-bchl
+DTSTAMP:20260707T172607Z
+DTSTART:20261018T010000Z
+DTEND:20261018T033000Z
+SUMMARY:Brooks Bandits vs Cowichan Valley Capitals
+LOCATION:CRA
+DESCRIPTION:Alberta-tid: 19:00\\nSvensk tid: 2026-10-18 03:00\\nArena: CRA\\nScoutmarkering: Medel\\nNotering: 
+END:VEVENT
+BEGIN:VEVENT
+UID:1faaf7bc7f74f4388ba511315b1ab8d7@mans-bchl
+DTSTAMP:20260707T172607Z
+DTSTART:20261024T010000Z
+DTEND:20261024T033000Z
+SUMMARY:Brooks Bandits vs Vernon Vipers
+LOCATION:CRA
+DESCRIPTION:Alberta-tid: 19:00\\nSvensk tid: 2026-10-24 03:00\\nArena: CRA\\nScoutmarkering: Medel\\nNotering: 
+END:VEVENT
+BEGIN:VEVENT
+UID:f244a945d89e32ccebe6f9f30a6b54fd@mans-bchl
+DTSTAMP:20260707T172607Z
+DTSTART:20261025T010000Z
+DTEND:20261025T033000Z
+SUMMARY:Brooks Bandits @ Sherwood Park Crusaders
+LOCATION:Sherwood Park Arena
+DESCRIPTION:Alberta-tid: 19:00\\nSvensk tid: 2026-10-25 02:00\\nArena: Sherwood Park Arena\\nScoutmarkering: Hög\\nNotering: 
+END:VEVENT
+BEGIN:VEVENT
+UID:3f96543f71aa9122c00a92d3ad99cc95@mans-bchl
+DTSTAMP:20260707T172607Z
+DTSTART:20261031T010000Z
+DTEND:20261031T033000Z
+SUMMARY:Brooks Bandits @ Powell River Kings
+LOCATION:Hap Parker Arena
+DESCRIPTION:Alberta-tid: 19:00\\nSvensk tid: 2026-10-31 02:00\\nArena: Hap Parker Arena\\nScoutmarkering: Medel\\nNotering: 
+END:VEVENT
+BEGIN:VEVENT
+UID:1d717cd46cdb4af6ea57da5d52517caf@mans-bchl
+DTSTAMP:20260707T172607Z
+DTSTART:20261101T000000Z
+DTEND:20261101T023000Z
+SUMMARY:Brooks Bandits @ Victoria Grizzlies
+LOCATION:The Q Centre
+DESCRIPTION:Alberta-tid: 18:00\\nSvensk tid: 2026-11-01 01:00\\nArena: The Q Centre\\nScoutmarkering: Medel\\nNotering: 
+END:VEVENT
+BEGIN:VEVENT
+UID:bbf3553fedf371cd297a7fe59f6885aa@mans-bchl
+DTSTAMP:20260707T172607Z
+DTSTART:20261105T013000Z
+DTEND:20261105T040000Z
+SUMMARY:Brooks Bandits vs Trail Smoke Eaters
+LOCATION:CRA
+DESCRIPTION:Alberta-tid: 18:30\\nSvensk tid: 2026-11-05 02:30\\nArena: CRA\\nScoutmarkering: Medel\\nNotering: 
+END:VEVENT
+BEGIN:VEVENT
+UID:b502ac9b937ba58fee9b97128dfee802@mans-bchl
+DTSTAMP:20260707T172607Z
+DTSTART:20261108T020000Z
+DTEND:20261108T043000Z
+SUMMARY:Brooks Bandits vs Sherwood Park Crusaders
+LOCATION:CRA
+DESCRIPTION:Alberta-tid: 19:00\\nSvensk tid: 2026-11-08 03:00\\nArena: CRA\\nScoutmarkering: Hög\\nNotering: 
+END:VEVENT
+BEGIN:VEVENT
+UID:d378152a233ab2ca715e447335aa87a0@mans-bchl
+DTSTAMP:20260707T172607Z
+DTSTART:20261108T230000Z
+DTEND:20261109T013000Z
+SUMMARY:Brooks Bandits vs Blackfalds Bulldogs
+LOCATION:CRA
+DESCRIPTION:Alberta-tid: 16:00\\nSvensk tid: 2026-11-09 00:00\\nArena: CRA\\nScoutmarkering: Hög\\nNotering: 
+END:VEVENT
+BEGIN:VEVENT
+UID:ad2cff20bdfa7e6c78541ece18f73e6c@mans-bchl
+DTSTAMP:20260707T172607Z
+DTSTART:20261114T020000Z
+DTEND:20261114T043000Z
+SUMMARY:Brooks Bandits @ Trail Smoke Eaters
+LOCATION:Cominco Arena
+DESCRIPTION:Alberta-tid: 19:00\\nSvensk tid: 2026-11-14 03:00\\nArena: Cominco Arena\\nScoutmarkering: Medel\\nNotering: 
+END:VEVENT
+BEGIN:VEVENT
+UID:2e048f5677ac5115dbaabc1c7dd30619@mans-bchl
+DTSTAMP:20260707T172607Z
+DTSTART:20261115T010000Z
+DTEND:20261115T033000Z
+SUMMARY:Brooks Bandits @ Cranbrook Bucks
+LOCATION:Western Financial Place
+DESCRIPTION:Alberta-tid: 18:00\\nSvensk tid: 2026-11-15 02:00\\nArena: Western Financial Place\\nScoutmarkering: Medel\\nNotering: 
+END:VEVENT
+BEGIN:VEVENT
+UID:47c7844600fb7b44c50b5b9d62fb9080@mans-bchl
+DTSTAMP:20260707T172607Z
+DTSTART:20261121T020000Z
+DTEND:20261121T043000Z
+SUMMARY:Brooks Bandits vs Cranbrook Bucks
+LOCATION:CRA
+DESCRIPTION:Alberta-tid: 19:00\\nSvensk tid: 2026-11-21 03:00\\nArena: CRA\\nScoutmarkering: Medel\\nNotering: 
+END:VEVENT
+BEGIN:VEVENT
+UID:747f81d6e5e420321d9b6a24a2f5a41e@mans-bchl
+DTSTAMP:20260707T172607Z
+DTSTART:20261122T020500Z
+DTEND:20261122T043500Z
+SUMMARY:Brooks Bandits @ Okotoks Oilers
+LOCATION:Viking Rentals Centre
+DESCRIPTION:Alberta-tid: 19:05\\nSvensk tid: 2026-11-22 03:05\\nArena: Viking Rentals Centre\\nScoutmarkering: Hög\\nNotering: 
+END:VEVENT
+BEGIN:VEVENT
+UID:a0fb4888ecc49ead78b1e4da90df283c@mans-bchl
+DTSTAMP:20260707T172607Z
+DTSTART:20261128T020000Z
+DTEND:20261128T043000Z
+SUMMARY:Brooks Bandits vs Okotoks Oilers
+LOCATION:CRA
+DESCRIPTION:Alberta-tid: 19:00\\nSvensk tid: 2026-11-28 03:00\\nArena: CRA\\nScoutmarkering: Hög\\nNotering: 
+END:VEVENT
+BEGIN:VEVENT
+UID:5e633d5a7da1e46ebc0067018e54f820@mans-bchl
+DTSTAMP:20260707T172607Z
+DTSTART:20261203T020000Z
+DTEND:20261203T043000Z
+SUMMARY:Brooks Bandits @ Cranbrook Bucks
+LOCATION:Western Financial Place
+DESCRIPTION:Alberta-tid: 19:00\\nSvensk tid: 2026-12-03 03:00\\nArena: Western Financial Place\\nScoutmarkering: Medel\\nNotering: 
+END:VEVENT
+BEGIN:VEVENT
+UID:9f633ffc3deed67b68f3d71c99b8a8de@mans-bchl
+DTSTAMP:20260707T172607Z
+DTSTART:20261205T020000Z
+DTEND:20261205T043000Z
+SUMMARY:Brooks Bandits @ West Kelowna Warriors
+LOCATION:Royal LePage Place
+DESCRIPTION:Alberta-tid: 19:00\\nSvensk tid: 2026-12-05 03:00\\nArena: Royal LePage Place\\nScoutmarkering: Medel\\nNotering: 
+END:VEVENT
+BEGIN:VEVENT
+UID:0acab139ab3ff2631d5d0d1a5dc149dd@mans-bchl
+DTSTAMP:20260707T172607Z
+DTSTART:20261206T010000Z
+DTEND:20261206T033000Z
+SUMMARY:Brooks Bandits @ Vernon Vipers
+LOCATION:Kal Tire Place
+DESCRIPTION:Alberta-tid: 18:00\\nSvensk tid: 2026-12-06 02:00\\nArena: Kal Tire Place\\nScoutmarkering: Medel\\nNotering: 
+END:VEVENT
+BEGIN:VEVENT
+UID:9e37cc271689ee4cd7c1e2cf8b662c80@mans-bchl
+DTSTAMP:20260707T172607Z
+DTSTART:20261212T020000Z
+DTEND:20261212T043000Z
+SUMMARY:Brooks Bandits @ Vernon Vipers
+LOCATION:Kal Tire Place
+DESCRIPTION:Alberta-tid: 19:00\\nSvensk tid: 2026-12-12 03:00\\nArena: Kal Tire Place\\nScoutmarkering: Medel\\nNotering: 
+END:VEVENT
+BEGIN:VEVENT
+UID:a5a52c1242b9de20836e05bb5cc0f77e@mans-bchl
+DTSTAMP:20260707T172607Z
+DTSTART:20261213T010000Z
+DTEND:20261213T033000Z
+SUMMARY:Brooks Bandits @ Salmon Arm Silverbacks
+LOCATION:Rogers Rink
+DESCRIPTION:Alberta-tid: 18:00\\nSvensk tid: 2026-12-13 02:00\\nArena: Rogers Rink\\nScoutmarkering: Medel\\nNotering: 
+END:VEVENT
+BEGIN:VEVENT
+UID:c5cb0a51e90c6cf4a0df78124e0b9d04@mans-bchl
+DTSTAMP:20260707T172607Z
+DTSTART:20261217T013000Z
+DTEND:20261217T040000Z
+SUMMARY:Brooks Bandits vs Spruce Grove Saints
+LOCATION:CRA
+DESCRIPTION:Alberta-tid: 18:30\\nSvensk tid: 2026-12-17 02:30\\nArena: CRA\\nScoutmarkering: Hög\\nNotering: 
+END:VEVENT
+BEGIN:VEVENT
+UID:44eecb8fd5baafe81ca0e99fb82d912f@mans-bchl
+DTSTAMP:20260707T172607Z
+DTSTART:20261220T020000Z
+DTEND:20261220T043000Z
+SUMMARY:Brooks Bandits vs Blackfalds Bulldogs
+LOCATION:CRA
+DESCRIPTION:Alberta-tid: 19:00\\nSvensk tid: 2026-12-20 03:00\\nArena: CRA\\nScoutmarkering: Hög\\nNotering: 
+END:VEVENT
+BEGIN:VEVENT
+UID:9cbb6178ef1c59260da51f3c9496cb8a@mans-bchl
+DTSTAMP:20260707T172607Z
+DTSTART:20270101T230000Z
+DTEND:20270102T013000Z
+SUMMARY:Brooks Bandits vs Blackfalds Bulldogs
+LOCATION:CRA
+DESCRIPTION:Alberta-tid: 16:00\\nSvensk tid: 2027-01-02 00:00\\nArena: CRA\\nScoutmarkering: Hög\\nNotering: 
+END:VEVENT
+BEGIN:VEVENT
+UID:6b1ea19abeb432f28a22f9986e1f8b0f@mans-bchl
+DTSTAMP:20260707T172607Z
+DTSTART:20270103T020000Z
+DTEND:20270103T043000Z
+SUMMARY:Brooks Bandits vs Okotoks Oilers
+LOCATION:CRA
+DESCRIPTION:Alberta-tid: 19:00\\nSvensk tid: 2027-01-03 03:00\\nArena: CRA\\nScoutmarkering: Hög\\nNotering: 
+END:VEVENT
+BEGIN:VEVENT
+UID:9000e6c8d7a6f12e150e4080e715afe3@mans-bchl
+DTSTAMP:20260707T172607Z
+DTSTART:20270109T020000Z
+DTEND:20270109T043000Z
+SUMMARY:Brooks Bandits vs Cranbrook Bucks
+LOCATION:CRA
+DESCRIPTION:Alberta-tid: 19:00\\nSvensk tid: 2027-01-09 03:00\\nArena: CRA\\nScoutmarkering: Medel\\nNotering: 
+END:VEVENT
+BEGIN:VEVENT
+UID:52d49c2ac34b11067da3be674c04ac9f@mans-bchl
+DTSTAMP:20260707T172607Z
+DTSTART:20270110T020000Z
+DTEND:20270110T043000Z
+SUMMARY:Brooks Bandits vs Salmon Arm Silverbacks
+LOCATION:CRA
+DESCRIPTION:Alberta-tid: 19:00\\nSvensk tid: 2027-01-10 03:00\\nArena: CRA\\nScoutmarkering: Medel\\nNotering: 
+END:VEVENT
+BEGIN:VEVENT
+UID:1074dac115a614f0731f37a43b26701a@mans-bchl
+DTSTAMP:20260707T172607Z
+DTSTART:20270117T010000Z
+DTEND:20270117T033000Z
+SUMMARY:Brooks Bandits @ Spruce Grove Saints
+LOCATION:Heavy Metal Place
+DESCRIPTION:Alberta-tid: 18:00\\nSvensk tid: 2027-01-17 02:00\\nArena: Heavy Metal Place\\nScoutmarkering: Hög\\nNotering: 
+END:VEVENT
+BEGIN:VEVENT
+UID:16a52eefb4970bf7d7f1f220ff561f2a@mans-bchl
+DTSTAMP:20260707T172607Z
+DTSTART:20270117T230000Z
+DTEND:20270118T013000Z
+SUMMARY:Brooks Bandits @ Blackfalds Bulldogs
+LOCATION:Eagle Builders Centre
+DESCRIPTION:Alberta-tid: 16:00\\nSvensk tid: 2027-01-18 00:00\\nArena: Eagle Builders Centre\\nScoutmarkering: Hög\\nNotering: 
+END:VEVENT
+BEGIN:VEVENT
+UID:d6a4e54b6961be7c2af2e148151b3395@mans-bchl
+DTSTAMP:20260707T172607Z
+DTSTART:20270130T020000Z
+DTEND:20270130T043000Z
+SUMMARY:Brooks Bandits vs West Kelowna Warriors
+LOCATION:CRA
+DESCRIPTION:Alberta-tid: 19:00\\nSvensk tid: 2027-01-30 03:00\\nArena: CRA\\nScoutmarkering: Medel\\nNotering: 
+END:VEVENT
+BEGIN:VEVENT
+UID:4d84c6cd84651ad1f1905ad358d651aa@mans-bchl
+DTSTAMP:20260707T172607Z
+DTSTART:20270131T020000Z
+DTEND:20270131T043000Z
+SUMMARY:Brooks Bandits vs Spruce Grove Saints
+LOCATION:CRA
+DESCRIPTION:Alberta-tid: 19:00\\nSvensk tid: 2027-01-31 03:00\\nArena: CRA\\nScoutmarkering: Hög\\nNotering: 
+END:VEVENT
+BEGIN:VEVENT
+UID:e2ab7481d933ddb793a550518645a1ba@mans-bchl
+DTSTAMP:20260707T172607Z
+DTSTART:20270203T183000Z
+DTEND:20270203T210000Z
+SUMMARY:Brooks Bandits @ Okotoks Oilers
+LOCATION:Viking Rentals Centre
+DESCRIPTION:Alberta-tid: 11:30\\nSvensk tid: 2027-02-03 19:30\\nArena: Viking Rentals Centre\\nScoutmarkering: Hög\\nNotering: 
+END:VEVENT
+BEGIN:VEVENT
+UID:a55b581611b6a5872d7153aefeb59259@mans-bchl
+DTSTAMP:20260707T172607Z
+DTSTART:20270206T020000Z
+DTEND:20270206T043000Z
+SUMMARY:Brooks Bandits vs Okotoks Oilers
+LOCATION:CRA
+DESCRIPTION:Alberta-tid: 19:00\\nSvensk tid: 2027-02-06 03:00\\nArena: CRA\\nScoutmarkering: Hög\\nNotering: 
+END:VEVENT
+BEGIN:VEVENT
+UID:9681951823102b3a7d47abc8922700c3@mans-bchl
+DTSTAMP:20260707T172607Z
+DTSTART:20270207T020000Z
+DTEND:20270207T043000Z
+SUMMARY:Brooks Bandits @ Sherwood Park Crusaders
+LOCATION:Sherwood Park Arena
+DESCRIPTION:Alberta-tid: 19:00\\nSvensk tid: 2027-02-07 03:00\\nArena: Sherwood Park Arena\\nScoutmarkering: Hög\\nNotering: 
+END:VEVENT
+BEGIN:VEVENT
+UID:7e11a8a928c809bea40a14b289ec2195@mans-bchl
+DTSTAMP:20260707T172607Z
+DTSTART:20270213T020000Z
+DTEND:20270213T043000Z
+SUMMARY:Brooks Bandits vs Vernon Vipers
+LOCATION:CRA
+DESCRIPTION:Alberta-tid: 19:00\\nSvensk tid: 2027-02-13 03:00\\nArena: CRA\\nScoutmarkering: Medel\\nNotering: 
+END:VEVENT
+BEGIN:VEVENT
+UID:e8ab48a3e886e0057239db2756dc98cb@mans-bchl
+DTSTAMP:20260707T172607Z
+DTSTART:20270214T010000Z
+DTEND:20270214T033000Z
+SUMMARY:Brooks Bandits @ Spruce Grove Saints
+LOCATION:Heavy Metal Place
+DESCRIPTION:Alberta-tid: 18:00\\nSvensk tid: 2027-02-14 02:00\\nArena: Heavy Metal Place\\nScoutmarkering: Hög\\nNotering: 
+END:VEVENT
+BEGIN:VEVENT
+UID:bc1b5285cfdcc2a6fce0a719b161a57b@mans-bchl
+DTSTAMP:20260707T172607Z
+DTSTART:20270215T230000Z
+DTEND:20270216T013000Z
+SUMMARY:Brooks Bandits vs Blackfalds Bulldogs
+LOCATION:CRA
+DESCRIPTION:Alberta-tid: 16:00\\nSvensk tid: 2027-02-16 00:00\\nArena: CRA\\nScoutmarkering: Hög\\nNotering: 
+END:VEVENT
+BEGIN:VEVENT
+UID:32cc9e868148736dc5e3b68d5257ccc4@mans-bchl
+DTSTAMP:20260707T172607Z
+DTSTART:20270220T020000Z
+DTEND:20270220T043000Z
+SUMMARY:Brooks Bandits @ Spruce Grove Saints
+LOCATION:Heavy Metal Place
+DESCRIPTION:Alberta-tid: 19:00\\nSvensk tid: 2027-02-20 03:00\\nArena: Heavy Metal Place\\nScoutmarkering: Hög\\nNotering: 
+END:VEVENT
+BEGIN:VEVENT
+UID:14fdf2b49b8fe6972cfa124b63e6c4d5@mans-bchl
+DTSTAMP:20260707T172607Z
+DTSTART:20270221T020000Z
+DTEND:20270221T043000Z
+SUMMARY:Brooks Bandits vs Sherwood Park Crusaders
+LOCATION:CRA
+DESCRIPTION:Alberta-tid: 19:00\\nSvensk tid: 2027-02-21 03:00\\nArena: CRA\\nScoutmarkering: Hög\\nNotering: 
+END:VEVENT
+BEGIN:VEVENT
+UID:d028a12b845391ddc6fecff17f90671a@mans-bchl
+DTSTAMP:20260707T172607Z
+DTSTART:20270227T020000Z
+DTEND:20270227T043000Z
+SUMMARY:Brooks Bandits @ Sherwood Park Crusaders
+LOCATION:Sherwood Park Arena
+DESCRIPTION:Alberta-tid: 19:00\\nSvensk tid: 2027-02-27 03:00\\nArena: Sherwood Park Arena\\nScoutmarkering: Hög\\nNotering: 
+END:VEVENT
+BEGIN:VEVENT
+UID:ae9a2ef03bbc2a05484f45d76b687b52@mans-bchl
+DTSTAMP:20260707T172607Z
+DTSTART:20270228T020000Z
+DTEND:20270228T043000Z
+SUMMARY:Brooks Bandits @ Spruce Grove Saints
+LOCATION:Heavy Metal Place
+DESCRIPTION:Alberta-tid: 19:00\\nSvensk tid: 2027-02-28 03:00\\nArena: Heavy Metal Place\\nScoutmarkering: Hög\\nNotering: 
+END:VEVENT
+BEGIN:VEVENT
+UID:2eac4567d642629844e26ef1ebd27072@mans-bchl
+DTSTAMP:20260707T172607Z
+DTSTART:20270304T020000Z
+DTEND:20270304T043000Z
+SUMMARY:Brooks Bandits @ Trail Smoke Eaters
+LOCATION:Cominco Arena
+DESCRIPTION:Alberta-tid: 19:00\\nSvensk tid: 2027-03-04 03:00\\nArena: Cominco Arena\\nScoutmarkering: Medel\\nNotering: 
+END:VEVENT
+BEGIN:VEVENT
+UID:384c7b99ad73660c36c76a248d12057a@mans-bchl
+DTSTAMP:20260707T172607Z
+DTSTART:20270306T020000Z
+DTEND:20270306T043000Z
+SUMMARY:Brooks Bandits @ Salmon Arm Silverbacks
+LOCATION:Rogers Rink
+DESCRIPTION:Alberta-tid: 19:00\\nSvensk tid: 2027-03-06 03:00\\nArena: Rogers Rink\\nScoutmarkering: Medel\\nNotering: 
+END:VEVENT
+BEGIN:VEVENT
+UID:402c1b2bd03d62911765f85e34d839e6@mans-bchl
+DTSTAMP:20260707T172607Z
+DTSTART:20270307T020000Z
+DTEND:20270307T043000Z
+SUMMARY:Brooks Bandits @ West Kelowna Warriors
+LOCATION:Royal LePage Place
+DESCRIPTION:Alberta-tid: 19:00\\nSvensk tid: 2027-03-07 03:00\\nArena: Royal LePage Place\\nScoutmarkering: Medel\\nNotering: 
+END:VEVENT
+BEGIN:VEVENT
+UID:f1274ca7b3bb8570e2500bc65a646b33@mans-bchl
+DTSTAMP:20260707T172607Z
+DTSTART:20270311T013000Z
+DTEND:20270311T040000Z
+SUMMARY:Brooks Bandits vs Salmon Arm Silverbacks
+LOCATION:CRA
+DESCRIPTION:Alberta-tid: 18:30\\nSvensk tid: 2027-03-11 02:30\\nArena: CRA\\nScoutmarkering: Medel\\nNotering: 
+END:VEVENT
+BEGIN:VEVENT
+UID:55f2c2eee849f6c3c6e0df496959c79e@mans-bchl
+DTSTAMP:20260707T172607Z
+DTSTART:20270314T020000Z
+DTEND:20270314T043000Z
+SUMMARY:Brooks Bandits vs West Kelowna Warriors
+LOCATION:CRA
+DESCRIPTION:Alberta-tid: 19:00\\nSvensk tid: 2027-03-14 03:00\\nArena: CRA\\nScoutmarkering: Medel\\nNotering: 
+END:VEVENT
+BEGIN:VEVENT
+UID:2ac4b772eb70a454d3134f70bf1ff54b@mans-bchl
+DTSTAMP:20260707T172607Z
+DTSTART:20270320T010000Z
+DTEND:20270320T033000Z
+SUMMARY:Brooks Bandits @ Blackfalds Bulldogs
+LOCATION:Eagle Builders Centre
+DESCRIPTION:Alberta-tid: 19:00\\nSvensk tid: 2027-03-20 02:00\\nArena: Eagle Builders Centre\\nScoutmarkering: Hög\\nNotering: 
+END:VEVENT
+BEGIN:VEVENT
+UID:ae7e5799c9bc320e616647b3e24338e2@mans-bchl
+DTSTAMP:20260707T172607Z
+DTSTART:20270321T010000Z
+DTEND:20270321T033000Z
+SUMMARY:Brooks Bandits vs Trail Smoke Eaters
+LOCATION:CRA
+DESCRIPTION:Alberta-tid: 19:00\\nSvensk tid: 2027-03-21 02:00\\nArena: CRA\\nScoutmarkering: Medel\\nNotering: 
+END:VEVENT
+END:VCALENDAR
