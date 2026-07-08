@@ -1,179 +1,79 @@
-let schedule = [];
-let deferredPrompt;
-const $ = s => document.querySelector(s);
-const $$ = s => [...document.querySelectorAll(s)];
-const seDate = m => new Date(`${m.date_se}T${m.time_se}:00+02:00`);
-const fmt = d => new Intl.DateTimeFormat('sv-SE',{weekday:'short',day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}).format(d);
-async function init(){
-  schedule = await fetch('/data/schedule.json').then(r=>r.json());
-  renderStats(); renderNext(); renderUpcoming(); renderSchedule(); renderTravel(); renderScout(); initReports(); loadPlayer(); loadNotes(); loadMedia(); tickTime(); setInterval(tickTime,1000); setInterval(renderNext,60000); bind();
-  if('serviceWorker' in navigator) navigator.serviceWorker.register('/service-worker.js');
-}
-function bind(){
-  $$('.tab,[data-tab]').forEach(b=>b.addEventListener('click',()=>showTab(b.dataset.tab)));
-  $('#search').addEventListener('input',renderSchedule); $('#filter').addEventListener('change',renderSchedule);
-  $('#statsForm').addEventListener('submit',e=>{e.preventDefault(); const data=Object.fromEntries(new FormData(e.target)); localStorage.setItem('mansStats',JSON.stringify(data)); loadPlayer();});
-  $('#saveNotes').addEventListener('click',()=>{localStorage.setItem('familyNotes',$('#familyNotes').value); alert('Sparat på den här enheten.');});
-  $('#refreshMedia')?.addEventListener('click',()=>loadMedia(true));
-  $('#loadReport')?.addEventListener('click',()=>loadReportIntoForm());
-  $('#newReportFromNext')?.addEventListener('click',()=>selectNextReport());
-  $('#reportForm')?.addEventListener('submit',saveReport);
-  $('#copyReport')?.addEventListener('click',copyReportText);
-  window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredPrompt=e;$('#installBtn').classList.remove('hidden');});
-  $('#installBtn').addEventListener('click',async()=>{if(deferredPrompt){deferredPrompt.prompt(); deferredPrompt=null;}});
-}
-function showTab(id){$$('.tab').forEach(t=>t.classList.toggle('active',t.dataset.tab===id));$$('.panel').forEach(p=>p.classList.toggle('active',p.id===id)); window.scrollTo({top:0,behavior:'smooth'});}
-function renderStats(){ $('#statGames').textContent=schedule.length; $('#statHome').textContent=schedule.filter(m=>m.homeaway==='Hemma').length; $('#statAway').textContent=schedule.filter(m=>m.homeaway==='Borta').length;}
-function nextMatch(){const now=new Date(); return schedule.find(m=>seDate(m)>now) || schedule[0];}
-function renderNext(){ const m=nextMatch(); if(!m)return; const d=seDate(m); $('#nextTitle').textContent=m.summary; $('#nextMeta').textContent=`${fmt(d)} svensk tid • ${m.arena} • ${m.homeaway}`; const diff=Math.max(0,d-new Date()); const days=Math.floor(diff/86400000), hrs=Math.floor(diff%86400000/3600000), mins=Math.floor(diff%3600000/60000), sec=Math.floor(diff%60000/1000); $('#countdown').innerHTML=[['Dagar',days],['Tim',hrs],['Min',mins],['Sek',sec]].map(x=>`<div><strong>${x[1]}</strong><span>${x[0]}</span></div>`).join('');}
-function renderUpcoming(){ const now=new Date(); const list=schedule.filter(m=>seDate(m)>now).slice(0,6); $('#upcoming').innerHTML=list.map(card).join('');}
-function card(m){return `<article class="card"><span class="pill">${m.homeaway}</span><span class="pill">Scout: ${m.scout}</span><h3>${m.summary}</h3><p>${fmt(seDate(m))} svensk tid</p><p>${m.arena}${m.note?` • ${m.note}`:''}</p></article>`}
-function renderSchedule(){ const q=$('#search').value?.toLowerCase()||''; const f=$('#filter').value; const rows=schedule.filter(m=>{const text=`${m.summary} ${m.arena} ${m.opponent}`.toLowerCase(); return (!q||text.includes(q)) && (f==='all'||m.homeaway===f||m.scout===f);}); $('#scheduleRows').innerHTML=rows.map(m=>`<tr><td>${fmt(seDate(m))}</td><td><strong>${m.summary}</strong><br><small>Alberta: ${m.date_local} ${m.time_local}</small></td><td>${m.tag} ${m.homeaway}</td><td>${m.arena}</td><td>${m.scout}</td></tr>`).join('');}
-function renderTravel(){ const away=schedule.filter(m=>m.homeaway==='Borta'); $('#travelCards').innerHTML=away.map(m=>`<article class="card"><span class="pill">Bortaresa</span><h3>${m.opponent}</h3><p>${fmt(seDate(m))}</p><p>${m.arena}</p><p><a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(m.arena+' '+m.opponent+' hockey')}" target="_blank">Öppna karta</a></p></article>`).join('');}
-function renderScout(){ const high=schedule.filter(m=>m.scout==='Hög'||/Showcase|Okotoks|Spruce Grove|Penticton|Blackfalds/i.test(`${m.summary} ${m.note}`)); $('#scoutCards').innerHTML=high.map(m=>`<article class="card"><span class="pill">Scoutfokus</span><h3>${m.summary}</h3><p>${fmt(seDate(m))}</p><p>${m.homeaway} • ${m.arena}</p><p>Extra intressant match för NCAA-/scoutbevakning.</p></article>`).join('');}
-function loadPlayer(){ const data=JSON.parse(localStorage.getItem('mansStats')||'{}'); Object.entries(data).forEach(([k,v])=>{const el=$(`#statsForm [name="${k}"]`); if(el)el.value=v;}); const pts=(+data.g||0)+(+data.a||0); $('#playerSummary').innerHTML=`<article class="card"><span class="pill">Måns Ågren</span><h3>${data.gp||0} matcher • ${pts} poäng</h3><p>Mål: ${data.g||0} • Assist: ${data.a||0} • +/-: ${data.pm||0} • PIM: ${data.pim||0}</p><p>${data.note||'Ingen anteckning ännu.'}</p></article>`;}
-function loadNotes(){ $('#familyNotes').value=localStorage.getItem('familyNotes')||'';}
-function tickTime(){ $('#brooksTime').textContent=new Intl.DateTimeFormat('sv-SE',{timeZone:'America/Edmonton',hour:'2-digit',minute:'2-digit'}).format(new Date());}
-init();
+const schedule = [
+  {date:'2026-09-18', time:'19:00', opp:'Blackfalds Bulldogs', venue:'Eagle Builders Centre', away:true, scout:true},
+  {date:'2026-09-19', time:'19:00', opp:'Okotoks Oilers', venue:'CRA', home:true, scout:true},
+  {date:'2026-09-25', time:'19:00', opp:'Spruce Grove Saints', venue:'CRA', home:true, scout:true},
+  {date:'2026-09-26', time:'19:00', opp:'Sherwood Park Crusaders', venue:'CRA', home:true},
+  {date:'2026-10-09', time:'19:00', opp:'Alberni Valley Bulldogs', venue:'CRA', home:true},
+  {date:'2026-10-10', time:'19:05', opp:'Okotoks Oilers', venue:'Viking Rentals Centre', away:true, scout:true},
+  {date:'2026-10-17', time:'19:00', opp:'Cowichan Valley Capitals', venue:'CRA', home:true},
+  {date:'2026-10-23', time:'19:00', opp:'Vernon Vipers', venue:'CRA', home:true},
+  {date:'2026-10-24', time:'19:00', opp:'Sherwood Park Crusaders', venue:'Sherwood Park Arena', away:true},
+  {date:'2026-10-30', time:'19:00', opp:'Powell River Kings', venue:'Hap Parker Arena', away:true},
+  {date:'2026-10-31', time:'18:00', opp:'Victoria Grizzlies', venue:'The Q Centre', away:true},
+  {date:'2026-11-04', time:'18:30', opp:'Trail Smoke Eaters', venue:'CRA', home:true},
+  {date:'2026-11-07', time:'19:00', opp:'Sherwood Park Crusaders', venue:'CRA', home:true},
+  {date:'2026-11-08', time:'16:00', opp:'Blackfalds Bulldogs', venue:'CRA', home:true},
+  {date:'2026-11-13', time:'19:00', opp:'Trail Smoke Eaters', venue:'Cominco Arena', away:true},
+  {date:'2026-11-14', time:'18:00', opp:'Cranbrook Bucks', venue:'Western Financial Place', away:true},
+  {date:'2026-11-20', time:'19:00', opp:'Cranbrook Bucks', venue:'CRA', home:true},
+  {date:'2026-11-21', time:'19:05', opp:'Okotoks Oilers', venue:'Viking Rentals Centre', away:true, scout:true},
+  {date:'2026-11-27', time:'19:00', opp:'Okotoks Oilers', venue:'CRA', home:true, scout:true},
+  {date:'2026-12-02', time:'19:00', opp:'Cranbrook Bucks', venue:'Western Financial Place', away:true},
+  {date:'2026-12-04', time:'19:00', opp:'West Kelowna Warriors', venue:'Royal LePage Place', away:true},
+  {date:'2026-12-05', time:'18:00', opp:'Vernon Vipers', venue:'Kal Tire Place', away:true},
+  {date:'2026-12-11', time:'19:00', opp:'Vernon Vipers', venue:'Kal Tire Place', away:true},
+  {date:'2026-12-12', time:'18:00', opp:'Salmon Arm Silverbacks', venue:'Rogers Rink', away:true},
+  {date:'2026-12-16', time:'18:30', opp:'Spruce Grove Saints', venue:'CRA', home:true, scout:true},
+  {date:'2026-12-19', time:'19:00', opp:'Blackfalds Bulldogs', venue:'CRA', home:true},
+  {date:'2027-01-01', time:'16:00', opp:'Blackfalds Bulldogs', venue:'CRA', home:true},
+  {date:'2027-01-02', time:'19:00', opp:'Okotoks Oilers', venue:'CRA', home:true, scout:true},
+  {date:'2027-01-08', time:'19:00', opp:'Cranbrook Bucks', venue:'CRA', home:true},
+  {date:'2027-01-09', time:'19:00', opp:'Salmon Arm Silverbacks', venue:'CRA', home:true},
+  {date:'2027-01-16', time:'18:00', opp:'Spruce Grove Saints', venue:'Heavy Metal Place', away:true, scout:true},
+  {date:'2027-01-17', time:'16:00', opp:'Blackfalds Bulldogs', venue:'Eagle Builders Centre', away:true},
+  {date:'2027-01-29', time:'19:00', opp:'West Kelowna Warriors', venue:'CRA', home:true},
+  {date:'2027-01-30', time:'19:00', opp:'Spruce Grove Saints', venue:'CRA', home:true, scout:true},
+  {date:'2027-02-03', time:'11:30', opp:'Okotoks Oilers', venue:'Viking Rentals Centre', away:true, scout:true},
+  {date:'2027-02-05', time:'19:00', opp:'Okotoks Oilers', venue:'CRA', home:true, scout:true},
+  {date:'2027-02-06', time:'19:00', opp:'Sherwood Park Crusaders', venue:'Sherwood Park Arena', away:true},
+  {date:'2027-02-12', time:'19:00', opp:'Vernon Vipers', venue:'CRA', home:true},
+  {date:'2027-02-13', time:'18:00', opp:'Spruce Grove Saints', venue:'Heavy Metal Place', away:true, scout:true},
+  {date:'2027-02-15', time:'16:00', opp:'Blackfalds Bulldogs', venue:'CRA', home:true},
+  {date:'2027-02-19', time:'19:00', opp:'Spruce Grove Saints', venue:'Heavy Metal Place', away:true, scout:true},
+  {date:'2027-02-20', time:'19:00', opp:'Sherwood Park Crusaders', venue:'CRA', home:true},
+  {date:'2027-02-26', time:'19:00', opp:'Sherwood Park Crusaders', venue:'Sherwood Park Arena', away:true},
+  {date:'2027-02-27', time:'19:00', opp:'Spruce Grove Saints', venue:'Heavy Metal Place', away:true, scout:true},
+  {date:'2027-03-03', time:'19:00', opp:'Trail Smoke Eaters', venue:'Cominco Arena', away:true},
+  {date:'2027-03-05', time:'19:00', opp:'Salmon Arm Silverbacks', venue:'Rogers Rink', away:true},
+  {date:'2027-03-06', time:'19:00', opp:'West Kelowna Warriors', venue:'Royal LePage Place', away:true},
+  {date:'2027-03-10', time:'18:30', opp:'Salmon Arm Silverbacks', venue:'CRA', home:true},
+  {date:'2027-03-13', time:'19:00', opp:'West Kelowna Warriors', venue:'CRA', home:true},
+  {date:'2027-03-19', time:'19:00', opp:'Blackfalds Bulldogs', venue:'Eagle Builders Centre', away:true},
+  {date:'2027-03-20', time:'19:00', opp:'Trail Smoke Eaters', venue:'CRA', home:true}
+];
 
-async function loadMedia(force=false){
-  const status=$('#mediaStatus'), box=$('#mediaCards');
-  if(!box) return;
-  const cached=JSON.parse(localStorage.getItem('mediaHits')||'null');
-  if(cached && !force){ renderMedia(cached); return; }
-  status.textContent='Söker efter nya omnämnanden...';
-  try{
-    const r=await fetch('/api/media?ts='+Date.now());
-    if(!r.ok) throw new Error('API inte tillgängligt ännu');
-    const data=await r.json();
-    localStorage.setItem('mediaHits',JSON.stringify(data));
-    renderMedia(data);
-  }catch(e){
-    status.textContent='Automatisk mediesökning aktiveras när appen är publicerad med Cloudflare Pages Functions. Använd snabbknapparna ovan tills dess.';
-    box.innerHTML=`<article class="card"><span class="pill">Media</span><h3>Manuell bevakning</h3><p>Klicka på Google News eller Google för aktuell sökning.</p><p>Sökningen omfattar Måns Ågren, Mans Agren, Brooks Bandits Måns och BCHL Måns Ågren.</p></article>`;
-  }
+const $ = (id)=>document.getElementById(id);
+const fmtDate = (d)=>new Intl.DateTimeFormat('sv-SE',{weekday:'short',day:'numeric',month:'short'}).format(new Date(d+'T12:00:00'));
+const svTime = (m)=>{ const dt = new Date(`${m.date}T${m.time}:00-07:00`); return new Intl.DateTimeFormat('sv-SE',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/Stockholm'}).format(dt); };
+const localDateSv = (m)=>{ const dt = new Date(`${m.date}T${m.time}:00-07:00`); return new Intl.DateTimeFormat('sv-SE',{weekday:'short',day:'numeric',month:'short',timeZone:'Europe/Stockholm'}).format(dt); };
+const nextMatch = ()=> schedule.find(m=> new Date(`${m.date}T${m.time}:00-07:00`) > new Date()) || schedule[0];
+const countdown = (m)=>{ const diff = new Date(`${m.date}T${m.time}:00-07:00`) - new Date(); if(diff<0)return 'Säsongen igång'; const d=Math.floor(diff/86400000), h=Math.floor(diff%86400000/3600000); return `${d} dagar ${h} tim`; };
+function setClocks(){
+ $('seClock').textContent = new Intl.DateTimeFormat('sv-SE',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/Stockholm'}).format(new Date());
+ $('brooksClock').textContent = new Intl.DateTimeFormat('sv-SE',{hour:'2-digit',minute:'2-digit',timeZone:'America/Edmonton'}).format(new Date());
 }
-function renderMedia(data){
-  const items=(data.items||[]).slice(0,12);
-  $('#mediaStatus').textContent=`Senast kontrollerad: ${data.checked_at ? new Date(data.checked_at).toLocaleString('sv-SE') : 'okänt'} • ${items.length} träffar`;
-  $('#mediaCards').innerHTML=items.length?items.map(i=>`<article class="card"><span class="pill">${i.source||'Media'}</span><h3>${i.title}</h3><p>${i.published||''}</p><p><a target="_blank" href="${i.link}">Öppna träff</a></p></article>`).join(''):`<article class="card"><h3>Inga nya träffar</h3><p>Bevakningen körs igen enligt Cloudflare-inställningen.</p></article>`;
-}
+setInterval(setClocks,30000); setClocks();
 
+document.querySelectorAll('.nav').forEach(btn=>btn.onclick=()=>{document.querySelectorAll('.nav,.view').forEach(x=>x.classList.remove('active'));btn.classList.add('active');$(btn.dataset.view).classList.add('active');$('pageTitle').textContent = btn.textContent;});
 
-function reportKey(matchNr,type){return `report_${matchNr}_${type}`;}
-function initReports(){
-  const sel=$('#reportMatchSelect'); if(!sel) return;
-  sel.innerHTML=schedule.map(m=>`<option value="${m.nr}">${m.swedish_display} • ${m.summary}</option>`).join('');
-  selectNextReport(false);
-  renderSavedReports();
-}
-function selectNextReport(open=true){
-  const m=nextMatch(); if(!m) return;
-  const sel=$('#reportMatchSelect'); if(sel) sel.value=m.nr;
-  const type=$('#reportType'); if(type) type.value='pre';
-  if(open) loadReportIntoForm(); else renderReportPreview();
-}
-function currentReportMatch(){ const nr=+($('#reportMatchSelect')?.value||0); return schedule.find(m=>m.nr===nr)||schedule[0]; }
-function defaultReport(m,type){
-  const pre=type==='pre';
-  return {
-    title: pre ? `Inför match: ${m.summary}` : `Efter match: ${m.summary}`,
-    result: pre ? `Nedsläpp ${m.swedish_display} svensk tid • Alberta ${m.date_local} ${m.time_local}` : 'Resultat: ',
-    mans: pre ? 'Håll koll på Måns i defensiva zonen, boxplay, fysiskt spel och förstapass.' : 'Måns statistik: mål, assist, +/-, PIM, istid/roll.',
-    focus: pre ? `1. Starten och första 10 minuterna\n2. Special teams: PP/PK\n3. Måns roll mot ${m.opponent}` : `1. Matchbild och avgörande sekvenser\n2. Måns prestation och roll\n3. Saker att följa upp inför nästa match`,
-    summary: pre ? `${m.homeaway}-match mot ${m.opponent}. Scoutnivå: ${m.scout}. Arena: ${m.arena}.` : 'Kort sammanfattning av matchen fylls i efter slutsignal.',
-    links: `BCHL/Brooks matchcenter: \nFloHockey: \nHighlights/rapport: `
-  };
-}
-function getReport(){
-  const m=currentReportMatch(); const type=$('#reportType')?.value||'pre';
-  return JSON.parse(localStorage.getItem(reportKey(m.nr,type))||'null') || defaultReport(m,type);
-}
-function loadReportIntoForm(){
-  const r=getReport(); const form=$('#reportForm'); if(!form) return;
-  Object.entries(r).forEach(([k,v])=>{const el=form.elements[k]; if(el) el.value=v;});
-  renderReportPreview();
-}
-function saveReport(e){
-  e.preventDefault(); const m=currentReportMatch(); const type=$('#reportType')?.value||'pre';
-  const data=Object.fromEntries(new FormData(e.target)); data.saved_at=new Date().toISOString(); data.match_nr=m.nr; data.type=type;
-  localStorage.setItem(reportKey(m.nr,type), JSON.stringify(data));
-  renderReportPreview(); renderSavedReports(); alert('Matchrapport sparad på den här enheten.');
-}
-function reportText(){
-  const m=currentReportMatch(); const type=$('#reportType')?.value||'pre'; const r=getReport();
-  const label=type==='pre'?'Inför match':'Efter match';
-  return `${label}: ${m.summary}\n${m.swedish_display} svensk tid • ${m.homeaway} • ${m.arena}\n\n${r.title}\n${r.result}\n\nMåns:\n${r.mans}\n\nTre saker att hålla koll på / följa upp:\n${r.focus}\n\nSammanfattning:\n${r.summary}\n\nLänkar:\n${r.links}`;
-}
-async function copyReportText(){
-  const text=reportText();
-  try{await navigator.clipboard.writeText(text); alert('Rapporttext kopierad.');}
-  catch(e){prompt('Kopiera rapporttext:', text);}
-}
-function renderReportPreview(){
-  const box=$('#reportPreview'); if(!box) return; const m=currentReportMatch(); const type=$('#reportType')?.value||'pre'; const r=getReport();
-  box.innerHTML=`<span class="pill">${type==='pre'?'Inför match':'Efter match'}</span><span class="pill">${m.homeaway}</span><span class="pill">Scout: ${m.scout}</span><h3>${r.title}</h3><p><strong>${m.swedish_display}</strong> svensk tid • Alberta ${m.date_local} ${m.time_local}</p><p>${m.summary} • ${m.arena}</p><p>${r.summary}</p>`;
-}
-function renderSavedReports(){
-  const box=$('#savedReports'); if(!box) return; const items=[];
-  for(const m of schedule){ for(const type of ['pre','post']){ const raw=localStorage.getItem(reportKey(m.nr,type)); if(raw){ const r=JSON.parse(raw); items.push({m,type,r}); } } }
-  box.innerHTML=items.length?items.reverse().slice(0,12).map(({m,type,r})=>`<article class="card"><span class="pill">${type==='pre'?'Inför':'Efter'}</span><h3>${r.title}</h3><p>${m.swedish_display} • ${m.summary}</p><p>${r.result||''}</p></article>`).join(''):`<article class="card"><h3>Inga sparade rapporter ännu</h3><p>Välj en match och skapa en inför- eller efterrapport.</p></article>`;
-}
-
-// Flygresor ARN–YYC
-function initFlights(){
-  const form=$('#flightForm'); if(!form) return;
-  const dep=form.elements['depart'];
-  if(dep && !dep.value){ dep.value='2026-12-30'; }
-  form.addEventListener('submit',e=>{e.preventDefault(); renderFlightSearchLinks();});
-  $('#saveFlightWatch')?.addEventListener('click',saveFlightWatch);
-  renderFlightSearchLinks(); renderFlightWatches();
-}
-function flightData(){
-  const f=$('#flightForm'); if(!f) return null;
-  const fd=new FormData(f);
-  const airlines=[];
-  if(fd.get('airCanada')) airlines.push('Air Canada');
-  if(fd.get('klm')) airlines.push('KLM');
-  if(fd.get('finnair')) airlines.push('Finnair');
-  return {
-    from:(fd.get('from')||'ARN').toString().toUpperCase(),
-    to:(fd.get('to')||'YYC').toString().toUpperCase(),
-    depart:fd.get('depart')||'',
-    ret:fd.get('return')||'',
-    maxPrice:fd.get('maxPrice')||'',
-    notBefore:fd.get('notBefore')||'09:30',
-    oneWay:!!fd.get('oneWay'), noUs:!!fd.get('noUs'), shortTravel:!!fd.get('shortTravel'), airlines
-  };
-}
-function ymdCompact(v){ return (v||'').replaceAll('-',''); }
-function renderFlightSearchLinks(){
-  const d=flightData(); const box=$('#flightSearchLinks'); if(!d||!box) return;
-  const route=`${d.from}-${d.to}`;
-  const qBase=`${d.from} to ${d.to} ${d.depart} ${d.oneWay?'one way':'return'} ${d.airlines.join(' OR ')} ${d.noUs?'no US stopover':''}`;
-  const google=`https://www.google.com/travel/flights?q=${encodeURIComponent(qBase)}`;
-  const kayak=`https://www.kayak.se/flights/${d.from}-${d.to}/${d.depart}${d.oneWay?'':'/'+d.ret}?sort=bestflight_a`;
-  const skyscanner=`https://www.skyscanner.se/transport/flights/${d.from.toLowerCase()}/${d.to.toLowerCase()}/${ymdCompact(d.depart)}/${d.oneWay?'':ymdCompact(d.ret)}`;
-  const airCanada=`https://www.aircanada.com/ca/en/aco/home.html#/`;
-  const klm=`https://www.klm.se/`; const finnair=`https://www.finnair.com/se-sv`;
-  box.innerHTML=`
-    <article class="card"><span class="pill">Flygsökning</span><h3>${route} ${d.depart||''}</h3><p>${d.oneWay?'Enkel resa':'Tur och retur'} • Flygbolag: ${d.airlines.join(', ')||'Alla'} • Max ${d.maxPrice||'–'} SEK</p><p>Regler: avgång efter ${d.notBefore}, ${d.noUs?'undvik USA, ':''}${d.shortTravel?'kort restid prioriteras':''}</p></article>
-    <article class="card"><span class="pill">Sökmotorer</span><h3>Jämför aktuella priser</h3><p><a target="_blank" href="${google}">Google Flights</a> • <a target="_blank" href="${kayak}">Kayak</a> • <a target="_blank" href="${skyscanner}">Skyscanner</a></p></article>
-    <article class="card"><span class="pill">Direkt hos flygbolag</span><h3>Air Canada, KLM och Finnair</h3><p><a target="_blank" href="${airCanada}">Air Canada</a> • <a target="_blank" href="${klm}">KLM</a> • <a target="_blank" href="${finnair}">Finnair</a></p></article>
-    <article class="card"><span class="pill">Automatisk bevakning</span><h3>Nästa steg</h3><p>För faktiska prisnotiser kan vi koppla /api/flights till en flyg-API-leverantör. Appen är förberedd för kriterierna Air Canada/KLM/Finnair, ARN–YYC, maxpris, kort restid och inga USA-mellanlandningar.</p></article>`;
-}
-function saveFlightWatch(){
-  const d=flightData(); if(!d) return;
-  const watches=JSON.parse(localStorage.getItem('flightWatches')||'[]');
-  watches.unshift({...d, saved_at:new Date().toISOString()});
-  localStorage.setItem('flightWatches',JSON.stringify(watches.slice(0,12)));
-  renderFlightWatches(); alert('Flygbevakning sparad på den här enheten.');
-}
-function renderFlightWatches(){
-  const box=$('#flightWatchCards'); if(!box) return;
-  const watches=JSON.parse(localStorage.getItem('flightWatches')||'[]');
-  box.innerHTML=watches.length?watches.map(w=>`<article class="card"><span class="pill">Bevakning</span><h3>${w.from} → ${w.to} ${w.depart}</h3><p>${w.oneWay?'Enkel':'Tur/retur'} • ${w.airlines.join(', ')} • max ${w.maxPrice||'–'} SEK</p><p>Efter ${w.notBefore} • ${w.noUs?'Ej via USA • ':''}${w.shortTravel?'Kort restid':''}</p></article>`).join(''):`<article class="card"><h3>Ingen sparad flygbevakning ännu</h3><p>Skapa en sökning och tryck på “Spara bevakning”.</p></article>`;
-}
-
-// initFlights körs efter huvudinitiering när DOM finns.
-setTimeout(initFlights, 0);
+function matchCard(m){return `<div class="match"><div><div class="date">${localDateSv(m)}</div><small>${svTime(m)} svensk tid</small></div><div><div class="teams">Brooks ${m.home?'vs':'@'} ${m.opp}</div><small>${m.venue} · ${m.home?'Hemma':'Borta'} · ${m.time} Alberta</small></div><div>${m.scout?'<span class="pill red">Scout</span>':''} <span class="pill">${m.home?'H':'B'}</span></div></div>`}
+function renderDashboard(){ const n=nextMatch(); $('dashboard').innerHTML = `<div class="grid cols-3"><div class="card hero" style="grid-column:span 2"><p class="eyebrow">Nästa match</p><h2>Brooks ${n.home?'vs':'@'} ${n.opp}</h2><p class="muted">${localDateSv(n)} · ${svTime(n)} svensk tid · ${n.venue}</p><div class="big">${countdown(n)}</div><div class="filters"><span class="pill ${n.home?'ok':'red'}">${n.home?'Hemmamatch':'Bortamatch'}</span>${n.scout?'<span class="pill red">Scoutläge</span>':''}<a class="btn secondary" href="/mans_bchl_2026_27_calendar.ics">Kalenderfil</a></div></div><div class="card"><p class="eyebrow">Måns statistik</p><div class="statline" style="grid-template-columns:1fr 1fr"><div class="stat"><strong id="gp">0</strong><span>Matcher</span></div><div class="stat"><strong>0</strong><span>Poäng</span></div><div class="stat"><strong>0</strong><span>+/-</span></div><div class="stat"><strong>0</strong><span>PIM</span></div></div><p class="muted">Fylls på manuellt efter matcher i version 5.1.</p></div></div><div class="grid cols-3" style="margin-top:18px"><div class="card"><p class="eyebrow">Kommande matcher</p><div class="match-list">${schedule.slice(0,4).map(matchCard).join('')}</div></div><div class="card"><p class="eyebrow">Reseöversikt</p><h3>ARN → YYC</h3><p class="muted">Air Canada, KLM och Finnair. Filter: ingen USA-transit, avgång efter 09:30, kort restid.</p><button class="btn" onclick="go('flights')">Öppna flygportal</button></div><div class="card"><p class="eyebrow">Media</p><h3>Bevakning</h3><p class="muted">Måns Ågren, Mans Agren, Brooks Bandits, BCHL och EliteProspects.</p><button class="btn secondary" onclick="go('media')">Öppna media</button></div></div>`}
+function go(view){document.querySelector(`[data-view="${view}"]`).click()}
+function renderMatches(filter='all'){ const items=schedule.filter(m=>filter==='home'?m.home:filter==='away'?m.away:filter==='scout'?m.scout:true); $('matches').innerHTML=`<div class="card"><p class="eyebrow">Spelschema</p><div class="filters"><button class="btn secondary" onclick="renderMatches('all')">Alla</button><button class="btn secondary" onclick="renderMatches('home')">Hemma</button><button class="btn secondary" onclick="renderMatches('away')">Borta</button><button class="btn secondary" onclick="renderMatches('scout')">Scout</button></div><div class="match-list">${items.map(matchCard).join('')}</div></div>`}
+function renderReports(){ const n=nextMatch(); $('reports').innerHTML=`<div class="grid cols-2"><div class="card"><p class="eyebrow">Inför match</p><h2>Brooks ${n.home?'vs':'@'} ${n.opp}</h2><div class="report-box">Motståndare: ${n.opp}\nTid: ${localDateSv(n)} ${svTime(n)} svensk tid\nPlats: ${n.venue}\nFokus för Måns:\n• Första pass ur egen zon\n• Boxplay och spelet framför mål\n• Fysisk närvaro längs sarg\n• Enkla beslut under forecheck\n\nScoutnotering: ${n.scout?'Högre intressematch – spara clips och matchanteckningar.':'Normal grundseriematch.'}</div><textarea rows="5" placeholder="Egna inför-anteckningar..."></textarea></div><div class="card"><p class="eyebrow">Efter match</p><h2>Matchrapportmall</h2><div class="form-grid"><label>Resultat<input placeholder="t.ex. 4–2"></label><label>Måns poäng<input placeholder="0+1"></label><label>+/-<input placeholder="+1"></label></div><div class="report-box" style="margin-top:12px">Sammanfattning:\nBrooks spelade ...\n\nMåns insats:\nStabil defensivt, bra förstapass och tydlig närvaro i boxplay.\n\nClips att spara:\n1. Bra uppspel\n2. Boxplay-sekvens\n3. Fysisk duell</div></div></div>`}
+function renderStats(){ $('stats').innerHTML=`<div class="card"><p class="eyebrow">Måns statistik</p><div class="statline"><div class="stat"><strong>0</strong><span>GP</span></div><div class="stat"><strong>0</strong><span>G</span></div><div class="stat"><strong>0</strong><span>A</span></div><div class="stat"><strong>0</strong><span>PTS</span></div><div class="stat"><strong>0</strong><span>+/-</span></div><div class="stat"><strong>0</strong><span>PIM</span></div></div><table class="table" style="margin-top:18px"><thead><tr><th>Datum</th><th>Motstånd</th><th>Resultat</th><th>G</th><th>A</th><th>+/-</th><th>Notering</th></tr></thead><tbody><tr><td colspan="7" class="muted">Fylls på efter säsongsstart.</td></tr></tbody></table></div>`}
+function renderFlights(){ $('flights').innerHTML=`<div class="grid cols-2"><div class="card"><p class="eyebrow">Flygresor</p><h2>Arlanda → Calgary</h2><div class="form-grid"><label>Från<input value="ARN"></label><label>Till<input value="YYC"></label><label>Datum<input type="date"></label><label>Flygbolag<select><option>Air Canada, KLM, Finnair</option><option>Air Canada</option><option>KLM</option><option>Finnair</option></select></label><label>Maxpris SEK<input value="10000"></label><label>Avgång tidigast<input value="09:30"></label></div><div class="filters" style="margin-top:14px"><span class="pill ok">Ingen USA-transit</span><span class="pill">Kort restid</span><span class="pill">1 byte helst</span></div><button class="btn" onclick="searchFlights()">Sök / bevaka</button><div id="flightResults" style="margin-top:16px"></div></div><div class="card"><p class="eyebrow">Bevakningar</p><div class="notice">För livepriser krävs senare API, t.ex. Amadeus/Skyscanner/Kiwi. Just nu sparar appen kriterier och länkar vidare till bolagens sökningar.</div><table class="table"><tr><th>Resa</th><th>Status</th></tr><tr><td>Måns till Brooks</td><td>Bokad</td></tr><tr><td>Julresa</td><td>Bevakas</td></tr><tr><td>Slutspel</td><td>Planeras</td></tr></table></div></div>`}
+async function searchFlights(){ $('flightResults').innerHTML=`<div class="match-list"><div class="match"><div><div class="date">Air Canada</div><small>ARN–YYC</small></div><div><div class="teams">Sök hos Air Canada</div><small>Undvik USA-transit manuellt i filtren.</small></div><a class="btn secondary" target="_blank" href="https://www.aircanada.com/">Öppna</a></div><div class="match"><div><div class="date">KLM</div><small>ARN–YYC</small></div><div><div class="teams">Sök hos KLM</div><small>Vanligtvis via Amsterdam.</small></div><a class="btn secondary" target="_blank" href="https://www.klm.se/">Öppna</a></div><div class="match"><div><div class="date">Finnair</div><small>ARN–YYC</small></div><div><div class="teams">Sök hos Finnair</div><small>Kontrollera partners och transitland.</small></div><a class="btn secondary" target="_blank" href="https://www.finnair.com/se-sv">Öppna</a></div></div>`}
+function renderMedia(){ const q=encodeURIComponent('"Måns Ågren" OR "Mans Agren" Brooks Bandits BCHL'); $('media').innerHTML=`<div class="grid cols-2"><div class="card"><p class="eyebrow">Mediabevakning</p><h2>Sökningar</h2><div class="match-list"><a class="match" target="_blank" href="https://www.google.com/search?q=${q}"><div class="date">Google</div><div class="teams">Måns Ågren / Mans Agren</div><span class="pill">Öppna</span></a><a class="match" target="_blank" href="https://news.google.com/search?q=${q}"><div class="date">Google News</div><div class="teams">Nyhetsbevakning</div><span class="pill">Öppna</span></a><a class="match" target="_blank" href="https://www.youtube.com/results?search_query=M%C3%A5ns+%C3%85gren+Brooks+Bandits"><div class="date">YouTube</div><div class="teams">Highlights / intervjuer</div><span class="pill">Öppna</span></a></div></div><div class="card"><p class="eyebrow">Daglig kontroll</p><div class="notice">Cloudflare Function finns som grund. Nästa steg är att koppla RSS/API och skicka notis när ny träff hittas.</div><textarea rows="8" placeholder="Mediaanteckningar..."></textarea></div></div>`}
+function renderFamily(){ $('family').innerHTML=`<div class="grid cols-3"><div class="card"><p class="eyebrow">Familjekalender</p><h2>Viktiga datum</h2><ul><li>Säsongsstart: september 2026</li><li>Julperiod: december</li><li>Slutspel: mars 2027</li></ul><a class="btn secondary" href="/mans_bchl_2026_27_calendar.ics">Ladda kalender</a></div><div class="card"><p class="eyebrow">Packlista</p><textarea rows="10">Pass\nETA/visumunderlag\nFörsäkring\nHockeyutrustning\nKlubbkontakt\nBiljetter\nHotell</textarea></div><div class="card"><p class="eyebrow">Dokument</p><p class="muted">Plats för länkar till försäkring, klubbinfo, resebokningar och viktiga PDF:er.</p><textarea rows="8" placeholder="Klistra in länkar..."></textarea></div></div>`}
+renderDashboard();renderMatches();renderReports();renderStats();renderFlights();renderMedia();renderFamily();
