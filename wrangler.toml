@@ -1,3 +1,7 @@
 name = "manshockey"
 pages_build_output_dir = "dist"
 compatibility_date = "2026-07-08"
+[[d1_databases]]
+binding = "DB"
+database_name = "manshockey-db"
+database_id = "9de32d3e-ea08-47f7-944e-67ebd02b910b"
