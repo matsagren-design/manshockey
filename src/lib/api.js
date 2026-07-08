@@ -1,20 +1,29 @@
-export async function getJson(url, fallback) {
+export async function getItems(resource, fallback = []) {
   try {
-    const response = await fetch(url);
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    return await response.json();
+    const response = await fetch(`/api/${resource}`);
+    const data = await response.json();
+    return data.items || data[resource] || data.media || data.travel || fallback;
   } catch {
     return fallback;
   }
 }
 
-export async function postJson(url, body, fallback = { ok: false }) {
+export async function saveItem(resource, item) {
   try {
-    const response = await fetch(url, {
+    const response = await fetch(`/api/${resource}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
+      body: JSON.stringify(item)
     });
+    return await response.json();
+  } catch {
+    return { ok:false, demo:true };
+  }
+}
+
+export async function getJson(url, fallback) {
+  try {
+    const response = await fetch(url);
     return await response.json();
   } catch {
     return fallback;
@@ -22,11 +31,8 @@ export async function postJson(url, body, fallback = { ok: false }) {
 }
 
 export function formatDate(date) {
+  if (!date) return '—';
   return new Intl.DateTimeFormat('sv-SE', {
-    weekday: 'short',
-    day: '2-digit',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit'
+    weekday:'short', day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit'
   }).format(new Date(date));
 }

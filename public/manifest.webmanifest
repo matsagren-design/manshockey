@@ -1,10 +1,10 @@
 {
-  "name": "MansHockey",
+  "name": "MansHockey Cloud",
   "short_name": "MansHockey",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#020617",
   "theme_color": "#020617",
-  "description": "M\u00e5ns Hockey \u2013 privat hockeyplattform.",
+  "description": "Datadriven hockeyplattform f\u00f6r M\u00e5ns BCHL-s\u00e4song.",
   "icons": []
 }

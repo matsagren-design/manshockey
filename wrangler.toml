@@ -2,12 +2,13 @@ name = "manshockey"
 pages_build_output_dir = "dist"
 compatibility_date = "2026-07-08"
 
-# Aktiveras när resurserna är skapade i Cloudflare:
+# Aktivera när D1 är skapad:
 # [[d1_databases]]
 # binding = "DB"
 # database_name = "manshockey-db"
 # database_id = "DIN_D1_DATABASE_ID"
 
+# Aktivera när R2 är skapad:
 # [[r2_buckets]]
 # binding = "FILES"
 # bucket_name = "manshockey-files"
