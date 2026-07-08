@@ -1,11 +1,10 @@
-# MansHockey Cloud CMS
+# MansHockey 10.0 Auth
 
-Ny datadriven version med CRUD:
-
-- skapa
-- redigera
-- ta bort
-- hämta från D1
+Innehåller:
+- D1-tabeller för users och sessions
+- Login/logout/me API
+- Adminåtgärder kräver inloggad admin
+- CMS CRUD finns kvar för matcher, scout, media, resor och dokument
 
 ## Cloudflare Pages
 - Framework preset: None
@@ -15,5 +14,9 @@ Ny datadriven version med CRUD:
 ## Publicering
 1. Packa upp.
 2. Kopiera innehållet till GitHub-mappen `manshockey`.
-3. Commit: `MansHockey Cloud CMS`
+3. Commit: `MansHockey 10 Auth`
 4. Push origin.
+
+## Viktigt
+Kör SQL i `schema/d1_schema.sql`.
+Lägg sedan in första admin enligt `docs/AUTH_SETUP.md`.

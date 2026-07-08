@@ -9,8 +9,5 @@ export async function onRequestPost(context) {
       contextText = JSON.stringify({ matches: matches.results || [], scout: scout.results || [] });
     }
   } catch {}
-  return Response.json({
-    ok: true,
-    answer: `AI Coach demo: frågan var "${question}". Jag läser nu D1-kontext när den finns. Kontext: ${contextText.slice(0, 700)}`
-  });
+  return Response.json({ ok:true, answer:`AI Coach demo: frågan var "${question}". Kontext: ${contextText.slice(0, 700)}` });
 }

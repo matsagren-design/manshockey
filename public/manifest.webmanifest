@@ -1,10 +1,10 @@
 {
-  "name": "MansHockey Cloud CMS",
+  "name": "MansHockey 10",
   "short_name": "MansHockey",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#020617",
   "theme_color": "#020617",
-  "description": "Datadriven hockeyplattform f\u00f6r M\u00e5ns BCHL-s\u00e4song.",
+  "description": "MansHockey med egen admininloggning.",
   "icons": []
 }

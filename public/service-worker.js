@@ -1,4 +1,4 @@
-const CACHE = 'manshockey-cloud-cms';
+const CACHE = 'manshockey-10-auth';
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(['/', '/manifest.webmanifest'])));
 });

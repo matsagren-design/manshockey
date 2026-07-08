@@ -9,17 +9,15 @@ function useCountdown(date) {
   const diff = Math.max(0, new Date(date) - now);
   return { days: Math.floor(diff/86400000), hours: Math.floor(diff/3600000%24), minutes: Math.floor(diff/60000%60) };
 }
-
-export function Dashboard({ matches, scout, media, travel, documents, health, setActive }) {
+export function Dashboard({ matches, scout, media, travel, health, user, setActive }) {
   const next = matches[0];
   const c = useCountdown(next?.game_date);
   const brooksTime = new Intl.DateTimeFormat('sv-SE', { hour:'2-digit', minute:'2-digit', timeZone:'America/Edmonton' }).format(new Date());
-
-  return <Page kicker="MansHockey Cloud CMS" title="Riktig datadriven admin">
+  return <Page kicker="MansHockey 10.0" title="Säker datadriven plattform">
     <div className="livegrid">
       <div className="intro">
-        <p>Nu finns CRUD: skapa, redigera och ta bort innehåll via API och D1. Aktivera Admin för att visa formulär och åtgärder.</p>
-        <div className="actions"><button onClick={() => setActive('admin')}>Öppna Admin</button><button onClick={() => setActive('matches')}>Matcharkiv</button></div>
+        <p>Admin kräver nu riktig inloggning via D1-session. Innehåll kan skapas/redigeras/tas bort först när du är inloggad.</p>
+        <div className="actions"><button onClick={() => setActive(user ? 'admin' : 'admin')}>{user ? 'Adminpanel' : 'Logga in'}</button><button onClick={() => setActive('matches')}>Matcharkiv</button></div>
       </div>
       <div className="next">
         <div className="pill">Nästa match</div>
@@ -30,7 +28,7 @@ export function Dashboard({ matches, scout, media, travel, documents, health, se
     </div>
     <div className="metrics">
       <Card icon={<Database/>} label="Databas" value={health?.d1 ? 'D1 aktiv' : 'Fallback'} sub="Cloudflare D1"/>
-      <Card icon={<Folder/>} label="Filer" value={health?.r2 ? 'R2 aktiv' : 'R2 redo'} sub="bilder/video/PDF"/>
+      <Card icon={<Folder/>} label="Filer" value={health?.r2 ? 'R2 aktiv' : 'R2 redo'} sub="R2 nästa"/>
       <Card icon={<Clock/>} label="Brooks" value={brooksTime} sub="lokal tid"/>
       <Card icon={<BookOpen/>} label="Matcher" value={matches.length} sub="CMS" onClick={() => setActive('matches')}/>
       <Card icon={<Target/>} label="Scout" value={scout.length} sub="rapporter" onClick={() => setActive('scout')}/>
