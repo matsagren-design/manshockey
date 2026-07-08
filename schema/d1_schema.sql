@@ -1,4 +1,11 @@
--- MansHockey 6.0 Cloudflare D1 schema
+-- MansHockey 7.0 Cloudflare D1 schema
+
+CREATE TABLE IF NOT EXISTS users (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  email TEXT UNIQUE NOT NULL,
+  role TEXT DEFAULT 'family',
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
 
 CREATE TABLE IF NOT EXISTS matches (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -6,11 +13,27 @@ CREATE TABLE IF NOT EXISTS matches (
   game_date TEXT NOT NULL,
   home_away TEXT NOT NULL,
   arena TEXT,
-  scout_level TEXT,
+  city TEXT,
   tv_link TEXT,
   result TEXT,
+  brooks_goals INTEGER,
+  opponent_goals INTEGER,
   report_before TEXT,
   report_after TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS player_stats (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  match_id INTEGER,
+  goals INTEGER DEFAULT 0,
+  assists INTEGER DEFAULT 0,
+  points INTEGER DEFAULT 0,
+  plus_minus INTEGER DEFAULT 0,
+  pim INTEGER DEFAULT 0,
+  shots INTEGER DEFAULT 0,
+  toi TEXT,
+  note TEXT,
   created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -23,21 +46,13 @@ CREATE TABLE IF NOT EXISTS scout_reports (
   created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS family_documents (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  title TEXT NOT NULL,
-  category TEXT,
-  note TEXT,
-  url TEXT,
-  created_at TEXT DEFAULT CURRENT_TIMESTAMP
-);
-
 CREATE TABLE IF NOT EXISTS media_items (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   title TEXT NOT NULL,
   source TEXT,
   url TEXT,
   tag TEXT,
+  summary TEXT,
   published_at TEXT,
   created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
@@ -54,8 +69,18 @@ CREATE TABLE IF NOT EXISTS travel_watch (
   created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
-INSERT INTO matches (opponent, game_date, home_away, arena, scout_level, tv_link)
+CREATE TABLE IF NOT EXISTS family_documents (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  title TEXT NOT NULL,
+  category TEXT,
+  note TEXT,
+  file_key TEXT,
+  url TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+INSERT INTO matches (opponent, game_date, home_away, arena, city, tv_link)
 VALUES
-('Spruce Grove Saints','2026-09-09T03:00:00+02:00','Hemma','Centennial Regional Arena','Försäsong','https://www.flohockey.tv/'),
-('Okotoks Oilers','2026-09-12T03:05:00+02:00','Borta','Viking Rentals Centre','Försäsong','https://www.flohockey.tv/'),
-('Okotoks Oilers','2026-09-13T03:00:00+02:00','Hemma','Centennial Regional Arena','Försäsong','https://www.flohockey.tv/');
+('Spruce Grove Saints','2026-09-09T03:00:00+02:00','Hemma','Centennial Regional Arena','Brooks','https://www.flohockey.tv/'),
+('Okotoks Oilers','2026-09-12T03:05:00+02:00','Borta','Viking Rentals Centre','Okotoks','https://www.flohockey.tv/'),
+('Okotoks Oilers','2026-09-13T03:00:00+02:00','Hemma','Centennial Regional Arena','Brooks','https://www.flohockey.tv/');

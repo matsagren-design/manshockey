@@ -1,2 +1,7 @@
-self.addEventListener('install',e=>{e.waitUntil(caches.open('mh-v3').then(c=>c.addAll(['/','/manifest.webmanifest'])))});
-self.addEventListener('fetch',e=>{e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request)))})
+const CACHE = 'manshockey-7';
+self.addEventListener('install', event => {
+  event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(['/', '/manifest.webmanifest'])));
+});
+self.addEventListener('fetch', event => {
+  event.respondWith(fetch(event.request).catch(() => caches.match(event.request)));
+});
