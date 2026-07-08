@@ -1,10 +1,10 @@
 {
-  "name": "M\u00e5ns Hockey",
-  "short_name": "M\u00e5ns Hockey",
+  "name": "MansHockey X",
+  "short_name": "MansHockey",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#05070d",
-  "theme_color": "#05070d",
-  "description": "Familjens hockeyplattform f\u00f6r M\u00e5ns BCHL-s\u00e4song.",
+  "background_color": "#020617",
+  "theme_color": "#020617",
+  "description": "M\u00e5ns Hockey \u2013 privat hockeyplattform f\u00f6r s\u00e4song, scouting, media och resor.",
   "icons": []
 }

@@ -2,7 +2,7 @@ name = "manshockey"
 pages_build_output_dir = "dist"
 compatibility_date = "2026-07-08"
 
-# Lägg tillbaka dessa när Cloudflare-resurserna är skapade:
+# Aktiveras när Cloudflare-resurserna är skapade:
 # [[d1_databases]]
 # binding = "DB"
 # database_name = "manshockey-db"
@@ -11,3 +11,6 @@ compatibility_date = "2026-07-08"
 # [[r2_buckets]]
 # binding = "FILES"
 # bucket_name = "manshockey-files"
+
+# [vars]
+# ADMIN_EMAILS = "din-epost@example.com"

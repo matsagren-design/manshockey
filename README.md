@@ -1,14 +1,16 @@
-# MansHockey 7.0
+# MansHockey X / Version 8
 
-Innehåller:
-- Inloggningsgrund/adminläge
-- D1-schema och API-lager
-- R2-filuppladdningsförberedelse
+Ny generationsplattform:
+- Live dashboard
+- AI Coach
+- Analytics
 - Matcharkiv
-- Scoutmodul
-- Media- och reseintegrationer
-- PWA-manifest och service worker
-- Cloudflare Functions med fallback om D1/R2 ännu inte är kopplat
+- Media hub
+- Resecenter
+- Video/bild/dokumentcenter
+- CMS/Admin-grund
+- Cloudflare D1/R2/Access-plan
+- PWA-grund
 
 ## Cloudflare Pages
 - Framework preset: None
@@ -19,8 +21,5 @@ Innehåller:
 1. Packa upp zippen.
 2. Kopiera innehållet till GitHub-mappen `manshockey`.
 3. Ersätt gamla filer.
-4. Commit: `MansHockey 7.0`
+4. Commit: `MansHockey X v8`
 5. Push origin.
-
-## Nästa steg
-Se `docs/CLOUDFLARE_SETUP.md` för D1, R2 och Access.

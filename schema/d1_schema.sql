@@ -1,8 +1,9 @@
--- MansHockey 7.0 Cloudflare D1 schema
+-- MansHockey X / Version 8 schema
 
 CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   email TEXT UNIQUE NOT NULL,
+  name TEXT,
   role TEXT DEFAULT 'family',
   created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
@@ -57,6 +58,16 @@ CREATE TABLE IF NOT EXISTS media_items (
   created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS files (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  title TEXT NOT NULL,
+  category TEXT,
+  file_key TEXT,
+  url TEXT,
+  match_id INTEGER,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS travel_watch (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   origin TEXT DEFAULT 'ARN',
@@ -69,18 +80,10 @@ CREATE TABLE IF NOT EXISTS travel_watch (
   created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS family_documents (
+CREATE TABLE IF NOT EXISTS ai_notes (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  title TEXT NOT NULL,
-  category TEXT,
-  note TEXT,
-  file_key TEXT,
-  url TEXT,
+  prompt TEXT,
+  answer TEXT,
+  source_context TEXT,
   created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
-
-INSERT INTO matches (opponent, game_date, home_away, arena, city, tv_link)
-VALUES
-('Spruce Grove Saints','2026-09-09T03:00:00+02:00','Hemma','Centennial Regional Arena','Brooks','https://www.flohockey.tv/'),
-('Okotoks Oilers','2026-09-12T03:05:00+02:00','Borta','Viking Rentals Centre','Okotoks','https://www.flohockey.tv/'),
-('Okotoks Oilers','2026-09-13T03:00:00+02:00','Hemma','Centennial Regional Arena','Brooks','https://www.flohockey.tv/');
