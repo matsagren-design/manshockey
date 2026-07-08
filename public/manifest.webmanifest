@@ -1,1 +1,9 @@
-{"name":"Måns Hockey","short_name":"Måns Hockey","start_url":"/","display":"standalone","theme_color":"#07090f","background_color":"#07090f"}
+{
+  "name": "M\u00e5ns Hockey",
+  "short_name": "M\u00e5ns Hockey",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#05070d",
+  "theme_color": "#05070d",
+  "icons": []
+}
