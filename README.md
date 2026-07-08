@@ -1,6 +1,6 @@
-# MansHockey 5.0
+# MansHockey 5.1
 
-Professionell hockeyportal byggd med React/Vite för Cloudflare Pages.
+Appnavigation med separata vyer: Dashboard, Matchcenter, Måns, Media, Resor, Scout, Familj och Admin.
 
 ## Cloudflare
 - Framework preset: None
@@ -8,8 +8,4 @@ Professionell hockeyportal byggd med React/Vite för Cloudflare Pages.
 - Build output directory: dist
 
 ## Publicering
-1. Packa upp zippen.
-2. Kopiera innehållet till GitHub-mappen `manshockey`.
-3. Ersätt gamla filer.
-4. Commit: `MansHockey 5.0`
-5. Push origin.
+Kopiera innehållet till GitHub-mappen `manshockey`, commit `MansHockey 5.1`, push origin.
