@@ -26,7 +26,7 @@ export function MatchCenter({ matches, scout, media, travel, documents, selected
 
   if (!selected) return <Page kicker="Matchcenter" title="Ingen match"><p>Lägg till en match först.</p></Page>;
 
-  return <Page kicker="Matchcenter" title={`Brooks ${selected.home_away === 'Hemma' ? 'vs' : '@'} ${selected.opponent}`} action={
+  return <Page kicker="Enterprise Matchcenter" title={`Brooks ${selected.home_away === 'Hemma' ? 'vs' : '@'} ${selected.opponent}`} action={
     <select className="match-select" value={selected.id} onChange={e => setSelectedMatchId(e.target.value)}>
       {matches.map(m => <option key={m.id} value={m.id}>{formatDate(m.game_date)} – {m.opponent}</option>)}
     </select>
@@ -35,7 +35,7 @@ export function MatchCenter({ matches, scout, media, travel, documents, selected
     <div className="match-layout">
       <div className="match-main">
         <div className="match-hero">
-          <span className="pill">{selected.home_away}</span>
+          <span className="pill">{selected.game_status || selected.home_away}</span>
           <h2>{selected.opponent}</h2>
           <p><CalendarDays size={16}/> {formatDate(selected.game_date)}</p>
           <p><MapPin size={16}/> {selected.arena} · {selected.city || 'Brooks'}</p>
@@ -53,14 +53,14 @@ export function MatchCenter({ matches, scout, media, travel, documents, selected
         </Section>
 
         <Section title="AI Matchanalys" icon={<Bot/>}>
-          <p>{selected.ai_summary || 'AI-sammanfattning skapas i nästa steg utifrån rapport, scout och media.'}</p>
+          <p>{selected.ai_summary || 'AI-sammanfattning skapas utifrån rapport, scout och media.'}</p>
         </Section>
 
-        <Section title="Scout" icon={<Target/>}>
+        <Section title="Scout kopplad till matchen" icon={<Target/>}>
           <div className="mini-grid">{matchScout.length ? matchScout.map(s => <article className="mini-card" key={s.id}><b>{s.category}</b><strong>{s.score}</strong><p>{s.note}</p><small>{s.ai_comment}</small></article>) : <p>Ingen scout kopplad till matchen ännu.</p>}</div>
         </Section>
 
-        <Section title="Media" icon={<Newspaper/>}>
+        <Section title="Media kopplad till matchen" icon={<Newspaper/>}>
           <div className="mini-grid">{matchMedia.length ? matchMedia.map(m => <a className="mini-card" href={m.url} target="_blank" key={m.id}><b>{m.title}</b><span>{m.media_type || m.tag}</span><p>{m.summary}</p><ExternalLink size={14}/></a>) : <p>Ingen media kopplad till matchen ännu.</p>}</div>
         </Section>
       </div>
@@ -77,7 +77,8 @@ export function MatchCenter({ matches, scout, media, travel, documents, selected
           {matchDocs.length ? matchDocs.map(d => <p key={d.id}><b>{d.title}</b> · {d.status}</p>) : <p>Inga dokument kopplade.</p>}
         </Section>
 
-        {user?.role === 'admin' && <Section title="Snabbredigera" icon={<Save/>}>
+        {user?.role === 'admin' && <Section title="Snabbredigera match" icon={<Save/>}>
+          <label>Status<input value={draft.game_status || ''} onChange={e => setDraft({...draft, game_status:e.target.value})}/></label>
           <label>Resultat<input value={draft.result || ''} onChange={e => setDraft({...draft, result:e.target.value})}/></label>
           <label>Brooks mål<input value={draft.brooks_goals || ''} onChange={e => setDraft({...draft, brooks_goals:e.target.value})}/></label>
           <label>Motståndare mål<input value={draft.opponent_goals || ''} onChange={e => setDraft({...draft, opponent_goals:e.target.value})}/></label>

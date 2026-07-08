@@ -1,12 +1,12 @@
 import React from 'react';
-import { BarChart3, BookOpen, Bot, CalendarDays, FileText, Home, KeyRound, LogOut, Newspaper, Plane, Settings, Target, Users } from 'lucide-react';
+import { BarChart3, BookOpen, Bot, CalendarDays, FileText, Home, KeyRound, LogOut, Newspaper, Plane, Settings, Target } from 'lucide-react';
 
 export const tabs = [
   ['dashboard','Dashboard',Home],
-  ['matches','Matcher',BookOpen],
   ['matchcenter','Matchcenter',CalendarDays],
-  ['media','Media',Newspaper],
+  ['matches','Matcher',BookOpen],
   ['scout','Scout',Target],
+  ['media','Media',Newspaper],
   ['travel','Resor',Plane],
   ['documents','Dokument',FileText],
   ['analytics','Analytics',BarChart3],
@@ -16,17 +16,17 @@ export const tabs = [
 
 export function Layout({ active, setActive, user, onLogout, children }) {
   return <div className="shell">
-    <aside className="sidebar">
+    <header className="topbar">
       <div className="brand" onClick={() => setActive('dashboard')}>
-        <div className="mark">M12</div>
-        <div><strong>MansHockey</strong><span>Matchcenter</span></div>
+        <div className="mark">M13</div>
+        <div><strong>MansHockey Enterprise</strong><span>Matchcenter first</span></div>
       </div>
       <nav>{tabs.map(([id,label,Icon]) => <button key={id} className={active===id?'active':''} onClick={() => setActive(id)}><Icon size={18}/>{label}</button>)}</nav>
-      <div className="side-user">
-        {user ? <><span>{user.name || user.email}</span><button onClick={onLogout}><LogOut size={16}/> Logga ut</button></> : <button onClick={() => setActive('admin')}><KeyRound size={16}/> Logga in</button>}
+      <div className="userbar">
+        {user ? <button onClick={onLogout}><LogOut size={16}/> Logga ut</button> : <button onClick={() => setActive('admin')}><KeyRound size={16}/> Login</button>}
       </div>
-    </aside>
-    <main className="content">{children}<footer><span>MansHockey 12 · manshockey.com</span><span>Matchcenter</span></footer></main>
+    </header>
+    <main className="content">{children}<footer><span>MansHockey Enterprise 13</span><span>manshockey.com</span></footer></main>
   </div>
 }
 

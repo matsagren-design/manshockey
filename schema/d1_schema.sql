@@ -1,4 +1,4 @@
--- MansHockey 12 Matchcenter schema
+-- MansHockey Enterprise 13 schema
 
 CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS matches (
   report_before TEXT,
   report_after TEXT,
   ai_summary TEXT,
+  game_status TEXT DEFAULT 'Kommande',
   created_at TEXT DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
@@ -88,3 +89,18 @@ CREATE TABLE IF NOT EXISTS documents (
   created_at TEXT DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Kör dessa manuellt om tabellen redan fanns och saknar kolumner:
+-- ALTER TABLE matches ADD COLUMN map_url TEXT;
+-- ALTER TABLE matches ADD COLUMN weather_note TEXT;
+-- ALTER TABLE matches ADD COLUMN brooks_goals INTEGER;
+-- ALTER TABLE matches ADD COLUMN opponent_goals INTEGER;
+-- ALTER TABLE matches ADD COLUMN ai_summary TEXT;
+-- ALTER TABLE matches ADD COLUMN game_status TEXT DEFAULT 'Kommande';
+-- ALTER TABLE scout_reports ADD COLUMN ai_comment TEXT;
+-- ALTER TABLE media_items ADD COLUMN match_id INTEGER;
+-- ALTER TABLE media_items ADD COLUMN media_type TEXT DEFAULT 'link';
+-- ALTER TABLE travel_watch ADD COLUMN match_id INTEGER;
+-- ALTER TABLE travel_watch ADD COLUMN status TEXT DEFAULT 'Bevakas';
+-- ALTER TABLE documents ADD COLUMN match_id INTEGER;
+-- ALTER TABLE documents ADD COLUMN status TEXT DEFAULT 'Aktiv';

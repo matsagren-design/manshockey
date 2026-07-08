@@ -10,5 +10,5 @@ export async function onRequestPost(context) {
       contextText = JSON.stringify({ matches: matches.results || [], scout: scout.results || [], media: media.results || [] });
     }
   } catch {}
-  return Response.json({ ok:true, answer:`AI Matchcenter demo: frågan var "${question}". Kontext: ${contextText.slice(0, 1200)}` });
+  return Response.json({ ok:true, answer:`Enterprise AI demo: frågan var "${question}". Kontext: ${contextText.slice(0, 1200)}` });
 }

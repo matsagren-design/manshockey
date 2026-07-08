@@ -23,20 +23,22 @@ async function requireAdmin(context) {
   return user;
 }
 
-const fallback = [{"id": 1, "opponent": "Spruce Grove Saints", "game_date": "2026-09-09T03:00:00+02:00", "home_away": "Hemma", "arena": "Centennial Regional Arena", "city": "Brooks", "tv_link": "https://www.flohockey.tv/", "report_before": "Fokus på enkel puckhantering.", "ai_summary": "Matchcenter redo."}];
+const fallback = [{"id": 1, "opponent": "Spruce Grove Saints", "game_date": "2026-09-09T03:00:00+02:00", "home_away": "Hemma", "arena": "Centennial Regional Arena", "city": "Brooks", "tv_link": "https://www.flohockey.tv/", "report_before": "Fokus på enkel puckhantering.", "ai_summary": "Matchcenter redo.", "game_status": "Kommande"}];
 export async function onRequestGet(context) {
   try {
     if (!context.env.DB) return json({ source:'fallback', items:fallback });
     const { results } = await context.env.DB.prepare('SELECT * FROM matches ORDER BY game_date ASC LIMIT 500').all();
     return json({ source:'d1', items:results });
-  } catch (err) { return json({ source:'fallback-error', error:String(err), items:fallback }); }
+  } catch (err) {
+    return json({ source:'fallback-error', error:String(err), items:fallback });
+  }
 }
 export async function onRequestPost(context) {
   const user = await requireAdmin(context);
   if (!user) return json({ ok:false, error:'Unauthorized' }, 401);
   try {
     const body = await readBody(context.request);
-    const result = await context.env.DB.prepare('INSERT INTO matches (opponent, game_date, home_away, arena, city, tv_link, map_url, weather_note, result, brooks_goals, opponent_goals, report_before, report_after, ai_summary) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(body.opponent ?? '', body.game_date ?? '', body.home_away ?? '', body.arena ?? '', body.city ?? '', body.tv_link ?? '', body.map_url ?? '', body.weather_note ?? '', body.result ?? '', body.brooks_goals ?? '', body.opponent_goals ?? '', body.report_before ?? '', body.report_after ?? '', body.ai_summary ?? '').run();
+    const result = await context.env.DB.prepare('INSERT INTO matches (opponent, game_date, home_away, arena, city, tv_link, map_url, weather_note, result, brooks_goals, opponent_goals, report_before, report_after, ai_summary, game_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(body.opponent ?? '', body.game_date ?? '', body.home_away ?? '', body.arena ?? '', body.city ?? '', body.tv_link ?? '', body.map_url ?? '', body.weather_note ?? '', body.result ?? '', body.brooks_goals ?? '', body.opponent_goals ?? '', body.report_before ?? '', body.report_after ?? '', body.ai_summary ?? '', body.game_status ?? '').run();
     return json({ ok:true, action:'created', result });
   } catch (err) { return json({ ok:false, error:String(err) }, 500); }
 }
@@ -46,7 +48,7 @@ export async function onRequestPut(context) {
   try {
     const body = await readBody(context.request);
     if (!body.id) return json({ ok:false, error:'Missing id' }, 400);
-    const result = await context.env.DB.prepare('UPDATE matches SET opponent = ?, game_date = ?, home_away = ?, arena = ?, city = ?, tv_link = ?, map_url = ?, weather_note = ?, result = ?, brooks_goals = ?, opponent_goals = ?, report_before = ?, report_after = ?, ai_summary = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(body.opponent ?? '', body.game_date ?? '', body.home_away ?? '', body.arena ?? '', body.city ?? '', body.tv_link ?? '', body.map_url ?? '', body.weather_note ?? '', body.result ?? '', body.brooks_goals ?? '', body.opponent_goals ?? '', body.report_before ?? '', body.report_after ?? '', body.ai_summary ?? '', body.id).run();
+    const result = await context.env.DB.prepare('UPDATE matches SET opponent = ?, game_date = ?, home_away = ?, arena = ?, city = ?, tv_link = ?, map_url = ?, weather_note = ?, result = ?, brooks_goals = ?, opponent_goals = ?, report_before = ?, report_after = ?, ai_summary = ?, game_status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(body.opponent ?? '', body.game_date ?? '', body.home_away ?? '', body.arena ?? '', body.city ?? '', body.tv_link ?? '', body.map_url ?? '', body.weather_note ?? '', body.result ?? '', body.brooks_goals ?? '', body.opponent_goals ?? '', body.report_before ?? '', body.report_after ?? '', body.ai_summary ?? '', body.game_status ?? '', body.id).run();
     return json({ ok:true, action:'updated', result });
   } catch (err) { return json({ ok:false, error:String(err) }, 500); }
 }

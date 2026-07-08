@@ -35,11 +35,11 @@ function App() {
   async function handleLogout(){await logout();setUser(null);setActive('dashboard')}
 
   const pages={
-    dashboard:<Dashboard matches={matches} scout={scout} media={media} travel={travel} documents={documents} health={health} user={user} setActive={setActive} setSelectedMatchId={setSelectedMatchId}/>,
-    matches:<DataPage type="matches" kicker="Match CMS" title="Matcher" items={matches} setItems={setMatches} user={user} reload={loadAll} setActive={setActive} setSelectedMatchId={setSelectedMatchId}/>,
+    dashboard:<Dashboard matches={matches} scout={scout} media={media} travel={travel} health={health} setActive={setActive} setSelectedMatchId={setSelectedMatchId}/>,
     matchcenter:<MatchCenter matches={matches} scout={scout} media={media} travel={travel} documents={documents} selectedMatchId={selectedMatchId} setSelectedMatchId={setSelectedMatchId} user={user} reload={loadAll}/>,
-    media:<DataPage type="media" kicker="Media CMS" title="Media" items={media} setItems={setMedia} user={user} reload={loadAll}/>,
+    matches:<DataPage type="matches" kicker="Match CMS" title="Matcher" items={matches} setItems={setMatches} user={user} reload={loadAll} setActive={setActive} setSelectedMatchId={setSelectedMatchId}/>,
     scout:<DataPage type="scout" kicker="Scout CMS" title="Scout" items={scout} setItems={setScout} user={user} reload={loadAll}/>,
+    media:<DataPage type="media" kicker="Media CMS" title="Media" items={media} setItems={setMedia} user={user} reload={loadAll}/>,
     travel:<DataPage type="travel" kicker="Travel CMS" title="Resor" items={travel} setItems={setTravel} user={user} reload={loadAll}/>,
     documents:<DataPage type="documents" kicker="Document CMS" title="Dokument" items={documents} setItems={setDocuments} user={user} reload={loadAll}/>,
     analytics:<Analytics analytics={analytics}/>,

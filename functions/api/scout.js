@@ -29,7 +29,9 @@ export async function onRequestGet(context) {
     if (!context.env.DB) return json({ source:'fallback', items:fallback });
     const { results } = await context.env.DB.prepare('SELECT * FROM scout_reports ORDER BY id DESC LIMIT 500').all();
     return json({ source:'d1', items:results });
-  } catch (err) { return json({ source:'fallback-error', error:String(err), items:fallback }); }
+  } catch (err) {
+    return json({ source:'fallback-error', error:String(err), items:fallback });
+  }
 }
 export async function onRequestPost(context) {
   const user = await requireAdmin(context);

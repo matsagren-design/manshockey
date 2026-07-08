@@ -4,7 +4,7 @@ import { Page } from '../components/Layout.jsx';
 import { createItem, deleteItem, formatDate, updateItem } from '../lib/api.js';
 
 const configs = {
-  matches: { empty:{opponent:'',game_date:'',home_away:'Hemma',arena:'',city:'',tv_link:'',map_url:'',weather_note:'',result:'',brooks_goals:'',opponent_goals:'',report_before:'',report_after:'',ai_summary:''}, titleField:'opponent', tagField:'home_away' },
+  matches: { empty:{opponent:'',game_date:'',home_away:'Hemma',arena:'',city:'',tv_link:'',map_url:'',weather_note:'',result:'',brooks_goals:'',opponent_goals:'',report_before:'',report_after:'',ai_summary:'',game_status:'Kommande'}, titleField:'opponent', tagField:'home_away' },
   scout: { empty:{match_id:'',category:'',score:80,note:'',ai_comment:''}, titleField:'category', tagField:'score' },
   media: { empty:{match_id:'',title:'',source:'',url:'',tag:'',summary:'',media_type:'link',published_at:''}, titleField:'title', tagField:'tag' },
   travel: { empty:{match_id:'',origin:'ARN',destination:'YYC',airline:'',max_price_sek:10000,depart_after:'09:30',avoid_usa:1,note:'',status:'Bevakas'}, titleField:'airline', tagField:'status' },

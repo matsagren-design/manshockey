@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { BookOpen, CalendarDays, Clock, Database, FileText, Newspaper, Plane, Target } from 'lucide-react';
+import { BookOpen, CalendarDays, Clock, Database, Newspaper, Plane, Target, Video } from 'lucide-react';
 import { Page, StatCard } from '../components/Layout.jsx';
 import { formatDate } from '../lib/api.js';
 
@@ -10,18 +10,18 @@ function useCountdown(date) {
   return { days: Math.floor(diff/86400000), hours: Math.floor(diff/3600000%24), minutes: Math.floor(diff/60000%60) };
 }
 
-export function Dashboard({ matches, scout, media, travel, documents, health, user, setActive, setSelectedMatchId }) {
+export function Dashboard({ matches, scout, media, travel, health, setActive, setSelectedMatchId }) {
   const next = matches[0];
   const c = useCountdown(next?.game_date);
   const brooksTime = new Intl.DateTimeFormat('sv-SE', { hour:'2-digit', minute:'2-digit', timeZone:'America/Edmonton' }).format(new Date());
 
-  function openNext() {
+  function openMatch() {
     if (next?.id) setSelectedMatchId(next.id);
     setActive('matchcenter');
   }
 
-  return <Page kicker="MansHockey 12" title="Matchcenter">
-    <div className="dashboard-hero">
+  return <Page kicker="Enterprise 13" title="MansHockey Matchcenter">
+    <div className="hero">
       <div>
         <span className="pill">Nästa match</span>
         <h2>Brooks {next?.home_away === 'Hemma' ? 'vs' : '@'} {next?.opponent}</h2>
@@ -29,19 +29,18 @@ export function Dashboard({ matches, scout, media, travel, documents, health, us
         <div className="count"><div><b>{c.days}</b><span>dagar</span></div><div><b>{c.hours}</b><span>tim</span></div><div><b>{c.minutes}</b><span>min</span></div></div>
       </div>
       <div className="quick-actions">
-        <button onClick={openNext}>Öppna Matchcenter</button>
-        <button onClick={() => setActive('matches')}>Matcher</button>
-        <button onClick={() => setActive('scout')}>Scout</button>
+        <button onClick={openMatch}>Öppna Matchcenter</button>
+        <button onClick={() => setActive('matches')}>Alla matcher</button>
       </div>
     </div>
     <div className="metrics">
       <StatCard icon={<Database/>} label="D1" value={health?.d1 ? 'Aktiv' : 'Fallback'} sub="databas"/>
       <StatCard icon={<Clock/>} label="Brooks" value={brooksTime} sub="lokal tid"/>
       <StatCard icon={<BookOpen/>} label="Matcher" value={matches.length} sub="poster" onClick={() => setActive('matches')}/>
-      <StatCard icon={<Newspaper/>} label="Media" value={media.length} sub="poster" onClick={() => setActive('media')}/>
       <StatCard icon={<Target/>} label="Scout" value={scout.length} sub="rapporter" onClick={() => setActive('scout')}/>
-      <StatCard icon={<Plane/>} label="Resor" value={travel.length} sub="bevakningar" onClick={() => setActive('travel')}/>
-      <StatCard icon={<FileText/>} label="Dokument" value={documents.length} sub="filer" onClick={() => setActive('documents')}/>
+      <StatCard icon={<Newspaper/>} label="Media" value={media.length} sub="flöde" onClick={() => setActive('media')}/>
+      <StatCard icon={<Plane/>} label="Resor" value={travel.length} sub="bevakning" onClick={() => setActive('travel')}/>
+      <StatCard icon={<Video/>} label="Matchcenter" value="Live" sub="ny modul" onClick={openMatch}/>
     </div>
   </Page>
 }
