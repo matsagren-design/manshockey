@@ -1,43 +1,36 @@
-# MansHockey Pro v5
+# MansHockey Pro X
 
-Ny design ovanpå den fungerande Cloudflare/GitHub-grunden.
+Stor appversion med:
 
-## Viktigt innan du ersätter filer
-Din nuvarande `.gitignore` verkar ha skapats som Word-fil. Skapa en riktig textfil som heter exakt `.gitignore` och innehåller:
+- Dashboard
+- Matchcenter med inför/efterrapporter
+- Livecenter
+- Scout Center
+- Resecenter/flygbevakning
+- Media Watch
+- Familjeportal
+- Pushnotis-demo
+- AI-assistent-demo
+- Adminläge
+- Cloudflare Functions: `/api/media`, `/api/flights`, `/api/match-report`
 
-```
-.wrangler/
-node_modules/
-dist/
-.env
-.DS_Store
-Thumbs.db
-```
+## Så uppdaterar du GitHub
 
-## Installera v5 i GitHub-mappen
-1. Packa upp ZIP-filen i en tillfällig mapp.
-2. Öppna GitHub Desktop → Repository → Show in Explorer.
-3. Kopiera innehållet från den uppackade v5-mappen till GitHub-mappen.
-4. Ersätt befintliga filer när Windows frågar.
-5. Kontrollera att `.wrangler` inte commitas.
-6. I GitHub Desktop: Summary: `MansHockey Pro v5`
-7. Klicka `Commit to main` och sedan `Push origin`.
-8. Cloudflare deployar automatiskt till manshockey.com.
+1. Packa upp ZIP-filen.
+2. Kopiera innehållet till din GitHub-mapp `manshockey`.
+3. Ersätt befintliga filer.
+4. GitHub Desktop visar ändringar.
+5. Commit-meddelande: `MansHockey Pro X`.
+6. Klicka `Commit to main` och sedan `Push origin`.
+7. Cloudflare bygger automatiskt och uppdaterar manshockey.com.
 
 ## Cloudflare-inställningar
-För denna version:
+
+Nuvarande statiska inställning fungerar:
 - Framework preset: None
 - Build command: tomt
 - Build output directory: `/`
 
-## Innehåll i v5
-- Ny appdesign
-- Dashboard
-- Matchcenter
-- Matchrapporter inför/efter match
-- Måns statistik
-- Flygresor ARN–YYC
-- Mediaflik
-- Familjeflik
-- PWA-stöd
-- Cloudflare Functions-grund
+## Viktigt
+
+Flygpriser, live-resultat och riktiga pushnotiser kräver externa API:er/nycklar och Workers-konfiguration. Appen har färdiga platser/API-stubbar för detta.

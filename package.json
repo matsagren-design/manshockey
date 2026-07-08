@@ -1,12 +1,1 @@
-{
-  "name": "manshockey",
-  "version": "2.0.0",
-  "private": true,
-  "scripts": {
-    "deploy": "wrangler pages deploy . --project-name=manshockey",
-    "preview": "wrangler pages dev ."
-  },
-  "devDependencies": {
-    "wrangler": "^4.108.0"
-  }
-}
+{"scripts":{"build":"echo Static app - no build required","deploy":"wrangler pages deploy . --project-name=manshockey"},"dependencies":{},"devDependencies":{}}

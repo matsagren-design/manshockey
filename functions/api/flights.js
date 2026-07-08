@@ -1,14 +1,4 @@
-export async function onRequestGet(context) {
-  const url = new URL(context.request.url);
-  const from = url.searchParams.get('from') || 'ARN';
-  const to = url.searchParams.get('to') || 'YYC';
-  const depart = url.searchParams.get('depart') || '';
-  return Response.json({
-    checked_at: new Date().toISOString(),
-    route: `${from}-${to}`,
-    depart,
-    status: 'placeholder',
-    message: 'Flygpriser kräver API-koppling, exempelvis Amadeus, Skyscanner eller Kiwi. UI:t i appen är klart och kan kopplas mot denna endpoint.',
-    offers: []
-  });
+export async function onRequest({request}) {
+  const url=new URL(request.url);
+  return Response.json({route:'ARN-YYC',airlines:['Air Canada','KLM','Finnair'],filters:{noUS:true,departAfter:'09:30'},note:'Koppla Amadeus/Skyscanner/Kiwi API för livepriser.',date:url.searchParams.get('date')||null,items:[]});
 }
