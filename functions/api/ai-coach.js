@@ -5,11 +5,11 @@ export async function onRequestPost(context) {
   try {
     if (context.env.DB) {
       const matches = await context.env.DB.prepare('SELECT * FROM matches ORDER BY game_date DESC LIMIT 20').all();
+      const events = await context.env.DB.prepare('SELECT * FROM game_events ORDER BY id DESC LIMIT 50').all();
+      const stats = await context.env.DB.prepare('SELECT * FROM player_stats ORDER BY id DESC LIMIT 20').all();
       const scout = await context.env.DB.prepare('SELECT * FROM scout_reports ORDER BY id DESC LIMIT 20').all();
-      const media = await context.env.DB.prepare('SELECT * FROM media_items ORDER BY id DESC LIMIT 20').all();
-      const travel = await context.env.DB.prepare('SELECT * FROM travel_watch ORDER BY id DESC LIMIT 20').all();
-      contextText = JSON.stringify({ matches: matches.results || [], scout: scout.results || [], media: media.results || [], travel: travel.results || [] });
+      contextText = JSON.stringify({ matches: matches.results || [], events: events.results || [], stats: stats.results || [], scout: scout.results || [] });
     }
   } catch {}
-  return Response.json({ ok:true, answer:`Enterprise 2026 AI demo: frågan var "${question}". Kontext: ${contextText.slice(0, 1400)}` });
+  return Response.json({ ok:true, answer:`Enterprise 2026.1 AI demo: frågan var "${question}". Kontext: ${contextText.slice(0, 1600)}` });
 }

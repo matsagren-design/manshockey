@@ -1,9 +1,10 @@
 import React from 'react';
-import { BarChart3, BookOpen, Bot, CalendarDays, FileText, Home, KeyRound, LogOut, Newspaper, Plane, Settings, Target, Users } from 'lucide-react';
+import { Activity, BarChart3, BookOpen, Bot, CalendarDays, FileText, Home, KeyRound, LogOut, Newspaper, Plane, Settings, Target, Users } from 'lucide-react';
 
 export const tabs = [
   ['dashboard','Dashboard',Home],
   ['matchcenter','Matchcenter',CalendarDays],
+  ['gamecenter','GameCenter',Activity],
   ['matches','Matcher',BookOpen],
   ['scout','Scout',Target],
   ['media','Media',Newspaper],
@@ -19,15 +20,15 @@ export function Layout({ active, setActive, user, onLogout, children }) {
   return <div className="shell">
     <header className="topbar">
       <div className="brand" onClick={() => setActive('dashboard')}>
-        <div className="mark">26</div>
-        <div><strong>MansHockey Enterprise</strong><span>2026 platform</span></div>
+        <div className="mark">26.1</div>
+        <div><strong>MansHockey Enterprise</strong><span>GameCenter platform</span></div>
       </div>
       <nav>{tabs.map(([id,label,Icon]) => <button key={id} className={active===id?'active':''} onClick={() => setActive(id)}><Icon size={18}/>{label}</button>)}</nav>
       <div className="userbar">
         {user ? <button onClick={onLogout}><LogOut size={16}/> Logga ut</button> : <button onClick={() => setActive('admin')}><KeyRound size={16}/> Login</button>}
       </div>
     </header>
-    <main className="content">{children}<footer><span>MansHockey Enterprise 2026</span><span>manshockey.com</span></footer></main>
+    <main className="content">{children}<footer><span>MansHockey Enterprise 2026.1</span><span>manshockey.com</span></footer></main>
   </div>
 }
 

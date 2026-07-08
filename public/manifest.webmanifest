@@ -1,10 +1,10 @@
 {
-  "name": "MansHockey Enterprise 2026",
+  "name": "MansHockey Enterprise 2026.1",
   "short_name": "MansHockey",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#020617",
   "theme_color": "#020617",
-  "description": "Enterprise-plattform f\u00f6r M\u00e5ns hockeys\u00e4song.",
+  "description": "GameCenter-plattform f\u00f6r M\u00e5ns hockeys\u00e4song.",
   "icons": []
 }

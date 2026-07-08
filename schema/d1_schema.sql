@@ -1,3 +1,5 @@
+-- MansHockey Enterprise 2026.1 schema
+
 CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   email TEXT UNIQUE NOT NULL,
@@ -27,10 +29,44 @@ CREATE TABLE IF NOT EXISTS matches (
   result TEXT,
   brooks_goals INTEGER,
   opponent_goals INTEGER,
+  brooks_shots INTEGER,
+  opponent_shots INTEGER,
+  period TEXT DEFAULT 'Ej startad',
+  game_clock TEXT,
   report_before TEXT,
   report_after TEXT,
   ai_summary TEXT,
   game_status TEXT DEFAULT 'Kommande',
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS game_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  match_id INTEGER,
+  period TEXT,
+  game_time TEXT,
+  event_type TEXT,
+  team TEXT,
+  player TEXT,
+  note TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS player_stats (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  match_id INTEGER,
+  goals INTEGER DEFAULT 0,
+  assists INTEGER DEFAULT 0,
+  points INTEGER DEFAULT 0,
+  plus_minus INTEGER DEFAULT 0,
+  pim INTEGER DEFAULT 0,
+  shots INTEGER DEFAULT 0,
+  toi TEXT,
+  hits INTEGER DEFAULT 0,
+  blocks INTEGER DEFAULT 0,
+  note TEXT,
   created_at TEXT DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
@@ -99,17 +135,7 @@ CREATE TABLE IF NOT EXISTS family_tasks (
   updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
--- Kör bara vid behov om befintliga tabeller saknar nya kolumner:
--- ALTER TABLE matches ADD COLUMN map_url TEXT;
--- ALTER TABLE matches ADD COLUMN weather_note TEXT;
--- ALTER TABLE matches ADD COLUMN brooks_goals INTEGER;
--- ALTER TABLE matches ADD COLUMN opponent_goals INTEGER;
--- ALTER TABLE matches ADD COLUMN ai_summary TEXT;
--- ALTER TABLE matches ADD COLUMN game_status TEXT DEFAULT 'Kommande';
--- ALTER TABLE scout_reports ADD COLUMN ai_comment TEXT;
--- ALTER TABLE media_items ADD COLUMN match_id INTEGER;
--- ALTER TABLE media_items ADD COLUMN media_type TEXT DEFAULT 'link';
--- ALTER TABLE travel_watch ADD COLUMN match_id INTEGER;
--- ALTER TABLE travel_watch ADD COLUMN status TEXT DEFAULT 'Bevakas';
--- ALTER TABLE documents ADD COLUMN match_id INTEGER;
--- ALTER TABLE documents ADD COLUMN status TEXT DEFAULT 'Aktiv';
+-- ALTER TABLE matches ADD COLUMN brooks_shots INTEGER;
+-- ALTER TABLE matches ADD COLUMN opponent_shots INTEGER;
+-- ALTER TABLE matches ADD COLUMN period TEXT DEFAULT 'Ej startad';
+-- ALTER TABLE matches ADD COLUMN game_clock TEXT;
