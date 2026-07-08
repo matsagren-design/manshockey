@@ -1,20 +1,15 @@
-# MansHockey 3.0
+# MansHockey Dashboard 4.0
 
-React + TypeScript + Vite + Cloudflare Pages/Functions + D1-förberedd app.
-
-## Lokal test
-```bash
-npm install
-npm run dev
-```
+Ny React/Vite-version med modern dashboard, matchcenter, Måns-profil, resecenter, scoutcenter, media och familjeportal.
 
 ## Cloudflare Pages
-Framework preset: Vite
-Build command: `npm run build`
-Build output directory: `dist`
+- Framework preset: None
+- Build command: npm install && npm run build
+- Build output directory: dist
 
-## D1
-Skapa databas i Cloudflare och kör `schema/d1.sql`. Lägg databas-ID i `wrangler.toml`.
-
-## Deploy via GitHub
-Kopiera filerna till GitHub-repot `manshockey`, commit och push. Cloudflare bygger automatiskt.
+## Publicering
+1. Packa upp zippen.
+2. Kopiera innehållet till GitHub-mappen `manshockey`.
+3. Ersätt gamla filer.
+4. Commit: `MansHockey Dashboard 4.0`
+5. Push origin.
