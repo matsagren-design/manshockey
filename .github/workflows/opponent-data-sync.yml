@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Check HockeyTech endpoint probe
+      - name: Check direct HockeyTech probe
         env:
           SYNC_TOKEN: ${{ secrets.MANSHOCKEY_SYNC_TOKEN }}
         run: |
@@ -21,7 +21,7 @@ jobs:
 
           jq -e '.ok == true' targets.json >/dev/null
 
-      - name: Probe HockeyTech endpoints
+      - name: Probe direct HockeyTech schedule feed
         env:
           SYNC_TOKEN: ${{ secrets.MANSHOCKEY_SYNC_TOKEN }}
         run: |
@@ -37,24 +37,22 @@ jobs:
           jq -e '.ok == true' probe.json >/dev/null
 
           echo ""
-          echo "=== E30.5.7 HOCKEYTECH ENDPOINT PROBE ==="
+          echo "=== E30.5.8 DIRECT HOCKEYTECH SCHEDULE PROBE ==="
           jq -r '"Version: \(.version)"' probe.json
           jq -r '"Mode: \(.mode)"' probe.json
-          jq '.summary' probe.json
 
           echo ""
-          echo "=== LIKELY SCHEDULE EVIDENCE ==="
-          jq '.likely_schedule_evidence' probe.json
+          echo "=== RESOLVED IDS ==="
+          jq '.resolved' probe.json
 
           echo ""
-          echo "=== FILE RESULTS ==="
-          jq -c '.files[] | {
-            url,
-            status,
-            chars,
-            candidate_urls,
-            route_like,
-            http_calls,
-            assignments,
-            markers
-          }' probe.json
+          echo "=== BOOTSTRAP ==="
+          jq '.bootstrap' probe.json
+
+          echo ""
+          echo "=== SCHEDULE RESULTS ==="
+          jq '.schedule_results' probe.json
+
+          echo ""
+          echo "=== GAME-LIKE ROW COUNTS ==="
+          jq -r '.schedule_results[] | "\(.name): status=\(.status), parse=\(.parse_ok), rows=\(.game_like_rows|length), chars=\(.body_chars)"' probe.json
