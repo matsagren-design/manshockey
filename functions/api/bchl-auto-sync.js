@@ -102,13 +102,8 @@ function validBchlGameCenterUrl(value=''){
   }catch{return ''}
 }
 
-function hasSpecificFlo(value=''){
-  return Boolean(validFloEventUrl(value));
-}
-
-function hasGameCenter(value=''){
-  return Boolean(validBchlGameCenterUrl(value));
-}
+function hasSpecificFlo(value=''){ return Boolean(validFloEventUrl(value)); }
+function hasGameCenter(value=''){ return Boolean(validBchlGameCenterUrl(value)); }
 
 function matchTiming(m){
   const t=new Date(m.game_date).getTime();
@@ -147,7 +142,7 @@ function bearerOK(request,env){
 async function logStart(db){
   const r=await db.prepare(
     `INSERT INTO sync_runs(source,status,message)
-     VALUES ('BCHL','running','E30.2.5 Smart Auto Sync start')`
+     VALUES ('BCHL','running','E30.2.6 Ultra Lean Sync start')`
   ).run();
   return r.meta?.last_row_id||null;
 }
@@ -181,39 +176,33 @@ async function selectTargets(db){
     const flo=hasSpecificFlo(m.tv_link);
     const gc=hasGameCenter(m.game_center_url);
     const completeLinks=flo && gc;
-    let priority=999;
 
-    if(!timing.valid) return {...m,_skip:true,_reason:'invalid-date',_priority:priority};
+    if(!timing.valid)return {...m,_skip:true,_reason:'invalid-date'};
 
-    // Near match / recently played: keep checking status/result even when links are complete.
-    if(timing.nearGame) priority=0;
-    else if(timing.recent && String(m.game_status||'')!=='Slut') priority=1;
+    // Near/current/recent games are always worth checking for status/result.
+    if(timing.nearGame)return {...m,_skip:false,_priority:0,_timing:timing,_hasFlo:flo,_hasGc:gc};
+    if(timing.recent && String(m.game_status||'')!=='Slut')
+      return {...m,_skip:false,_priority:1,_timing:timing,_hasFlo:flo,_hasGc:gc};
 
-    // Upcoming incomplete links.
-    else if(timing.hours>=0 && !completeLinks) priority=2;
+    // Far-future complete link set: skip until near match day.
+    if(timing.farFuture && completeLinks)
+      return {...m,_skip:true,_reason:'complete-far-future'};
 
-    // Far future + complete links needs no Firecrawl work yet.
-    else if(timing.farFuture && completeLinks) return {...m,_skip:true,_reason:'complete-far-future',_priority:999};
+    // Upcoming incomplete links: enrich.
+    if(timing.hours>=0 && !completeLinks)
+      return {...m,_skip:false,_priority:2,_timing:timing,_hasFlo:flo,_hasGc:gc};
 
-    // Old final matches do not need checking.
-    else if(timing.old && String(m.game_status||'')==='Slut') return {...m,_skip:true,_reason:'old-final',_priority:999};
+    // Old finals: skip.
+    if(timing.old && String(m.game_status||'')==='Slut')
+      return {...m,_skip:true,_reason:'old-final'};
 
-    else priority=3;
-
-    return {
-      ...m,
-      _skip:false,
-      _priority:priority,
-      _timing:timing,
-      _hasFlo:flo,
-      _hasGameCenter:gc
-    };
+    return {...m,_skip:false,_priority:3,_timing:timing,_hasFlo:flo,_hasGc:gc};
   });
 
   return scored
     .filter(m=>!m._skip)
     .sort((a,b)=>a._priority-b._priority || new Date(a.game_date)-new Date(b.game_date))
-    .slice(0,4);
+    .slice(0,3); // Leaner: max 3 targets/run
 }
 
 class RateLimitError extends Error{
@@ -225,8 +214,6 @@ class RateLimitError extends Error{
 }
 
 async function firecrawlSearch(env,query,domains){
-  if(!env.FIRECRAWL_API_KEY)throw new Error('FIRECRAWL_API_KEY saknas');
-
   const r=await fetch(FIRECRAWL_SEARCH_URL,{
     method:'POST',
     headers:{
@@ -235,7 +222,7 @@ async function firecrawlSearch(env,query,domains){
     },
     body:JSON.stringify({
       query,
-      limit:8,
+      limit:6,
       includeDomains:domains,
       country:'CA',
       location:'Alberta,Canada',
@@ -247,14 +234,9 @@ async function firecrawlSearch(env,query,domains){
   });
 
   const data=await r.json().catch(()=>null);
-
   if(r.status===429){
-    throw new RateLimitError(
-      `Firecrawl rate limit 429`,
-      r.headers.get('retry-after')||''
-    );
+    throw new RateLimitError('Firecrawl rate limit 429',r.headers.get('retry-after')||'');
   }
-
   if(!r.ok || !data?.success){
     throw new Error(`Firecrawl search ${r.status}: ${data?.error||'okänt fel'}`);
   }
@@ -266,6 +248,18 @@ async function firecrawlSearch(env,query,domains){
   })).filter(x=>x.url);
 }
 
+function candidateRank(x,target){
+  const u=x.url.toLowerCase();
+  const text=`${x.title} ${x.description}`.toLowerCase();
+  const opp=String(target.opponent||'').toLowerCase();
+  let score=0;
+  if(u.includes('/stats/game-center/'))score+=150;
+  if(u.includes('flohockey.tv/events/'))score+=140;
+  if(text.includes('brooks'))score+=25;
+  if(text.includes(opp))score+=25;
+  return score;
+}
+
 function dedupeResults(items){
   const out=[],seen=new Set();
   for(const x of items){
@@ -275,63 +269,63 @@ function dedupeResults(items){
   return out;
 }
 
-function candidateRank(x,target){
-  const u=x.url.toLowerCase();
-  const text=`${x.title} ${x.description}`.toLowerCase();
-  const opp=String(target.opponent||'').toLowerCase();
-  const date=albertaDateKey(target.game_date);
-  let score=0;
-  if(u.includes('/stats/game-center/'))score+=150;
-  if(u.includes('flohockey.tv/events/'))score+=140;
-  if(text.includes('brooks'))score+=25;
-  if(text.includes(opp))score+=25;
-  if(date && text.includes(date))score+=20;
-  return score;
-}
-
 /*
- Smart search:
- - If both links missing: max 2 BCHL + 2 Flo queries.
- - If only Game Center missing: BCHL only.
- - If only Flo missing: Flo only.
- - Near game / recent game: always include one BCHL search for status/score.
- This is much lighter than E30.2.4's 7 searches per target.
+ Ultra-lean search:
+ - one primary query for exactly what is missing
+ - optional one fallback query ONLY when primary yielded no candidates
+ - if both links missing, one BCHL primary + one Flo primary
+ - near game with complete links: BCHL status query only
 */
-async function smartSearch(env,target){
+async function ultraLeanSearch(env,target){
   const longDate=humanDate(target.game_date);
   const isoDate=albertaDateKey(target.game_date);
   const opp=target.opponent;
-  const timing=target._timing||matchTiming(target);
-
   const needGc=!hasGameCenter(target.game_center_url);
   const needFlo=!hasSpecificFlo(target.tv_link);
-  const needStatus=timing.nearGame || timing.recent;
+  const needStatus=target._timing?.nearGame || target._timing?.recent;
 
-  const tasks=[];
+  const plans=[];
 
   if(needGc || needStatus){
-    tasks.push({q:`"Brooks Bandits" "${opp}" "${longDate}"`,domains:['bchl.ca'],kind:'bchl'});
-    if(needGc) tasks.push({q:`"Brooks Bandits" "${opp}" "${isoDate}"`,domains:['bchl.ca'],kind:'bchl'});
+    plans.push({
+      kind:'bchl',
+      domains:['bchl.ca'],
+      primary:`"Brooks Bandits" "${opp}" "${longDate}"`,
+      fallback:`"Brooks Bandits" "${opp}" "${isoDate}"`
+    });
   }
 
   if(needFlo){
-    tasks.push({q:`"Brooks Bandits" "${opp}" "${longDate}"`,domains:['flohockey.tv'],kind:'flo'});
-    tasks.push({q:`"Brooks Bandits" "${opp}" "${isoDate}"`,domains:['flohockey.tv'],kind:'flo'});
+    plans.push({
+      kind:'flo',
+      domains:['flohockey.tv'],
+      primary:`"Brooks Bandits" "${opp}" "${longDate}"`,
+      fallback:`"Brooks Bandits" "${opp}" "${isoDate}"`
+    });
   }
 
   const all=[];
   let searches=0;
   let rateLimited=false;
+  const trace=[];
 
-  for(const task of tasks){
+  for(const plan of plans){
     try{
-      const r=await firecrawlSearch(env,task.q,task.domains);
+      let r=await firecrawlSearch(env,plan.primary,plan.domains);
       searches++;
+      trace.push({kind:plan.kind,phase:'primary',count:r.length});
+
+      if(r.length===0){
+        r=await firecrawlSearch(env,plan.fallback,plan.domains);
+        searches++;
+        trace.push({kind:plan.kind,phase:'fallback',count:r.length});
+      }
+
       all.push(...r);
     }catch(err){
       if(err instanceof RateLimitError){
         rateLimited=true;
-        // Soft stop for this target: do not burn more calls during rate-limit window.
+        trace.push({kind:plan.kind,phase:'rate-limit'});
         break;
       }
       throw err;
@@ -341,10 +335,10 @@ async function smartSearch(env,target){
   return {
     results:dedupeResults(all)
       .sort((a,b)=>candidateRank(b,target)-candidateRank(a,target))
-      .slice(0,8),
+      .slice(0,6),
     searches,
     rateLimited,
-    planned:tasks.length
+    trace
   };
 }
 
@@ -390,7 +384,7 @@ Never invent or infer a different date/match.
       url,
       formats:[{type:'json',prompt,schema}],
       onlyMainContent:false,
-      waitFor:3000,
+      waitFor:2500,
       timeout:60000,
       maxAge:300000,
       location:{country:'CA',languages:['en-CA']}
@@ -508,11 +502,12 @@ async function runSync(context){
     const targets=await selectTargets(db);
 
     if(targets.length===0){
-      const msg='E30.2.5: inga matcher behöver kontroll just nu.';
+      const msg='E30.2.6: inga matcher behöver kontroll just nu.';
       await logFinish(db,runId,'success',0,0,0,msg);
       return json({
-        ok:true,version:'E30.2.5',targets:0,
-        games_matched:0,games_updated:0,rate_limited:false,message:msg
+        ok:true,version:'E30.2.6',targets:0,
+        searches:0,games_matched:0,games_updated:0,
+        rate_limited:false,message:msg
       });
     }
 
@@ -531,37 +526,30 @@ async function runSync(context){
         notes:[]
       };
 
-      // Extra guard: complete far-future links should never have reached target list.
-      if(target._timing?.farFuture &&
-         hasGameCenter(target.game_center_url) &&
-         hasSpecificFlo(target.tv_link)){
-        item.notes.push('Skip: komplett framtida match.');
-        details.push(item);
-        continue;
-      }
-
       try{
-        const smart=await smartSearch(context.env,target);
-        searches+=smart.searches;
-        item.search_results=smart.results.length;
-        item.searches_used=smart.searches;
-        item.searches_planned=smart.planned;
+        const lean=await ultraLeanSearch(context.env,target);
+        searches+=lean.searches;
+        item.searches_used=lean.searches;
+        item.search_trace=lean.trace;
+        item.search_results=lean.results.length;
 
-        if(smart.rateLimited){
+        if(lean.rateLimited){
           rateLimited=true;
           item.notes.push('Firecrawl 429: mjukt stopp för denna match.');
         }
 
         let found=null;
-        for(const candidate of smart.results.slice(0,4)){
+        for(const candidate of lean.results.slice(0,3)){
           try{
             const extracted=await scrapeCandidate(context.env,candidate.url,target);
             if(!extracted)continue;
+
             const verified=verifyExtract(target,extracted);
             if(verified.ok){
               found={candidate,extracted,verified};
               break;
             }
+
             item.notes.push(`${candidate.url}: ${verified.reason}`);
           }catch(err){
             if(err instanceof RateLimitError){
@@ -574,7 +562,7 @@ async function runSync(context){
         }
 
         if(!found){
-          if(!smart.rateLimited)item.notes.push('Ingen högsäker träff.');
+          if(!lean.rateLimited)item.notes.push('Ingen högsäker träff.');
           details.push(item);
           continue;
         }
@@ -605,14 +593,14 @@ async function runSync(context){
     }
 
     const status=rateLimited?'success_rate_limited':'success';
-    const msg=`E30.2.5: ${targets.length} matcher kontrollerade, ${matched} säkert matchade, ${updated} förbättrade, ${searches} sökningar${rateLimited?', rate-limit hanterad':''}.`;
+    const msg=`E30.2.6: ${targets.length} matcher kontrollerade, ${matched} säkert matchade, ${updated} förbättrade, ${searches} sökningar${rateLimited?', rate-limit hanterad':''}.`;
 
     await logFinish(db,runId,status,targets.length,matched,updated,msg);
 
     return json({
       ok:true,
-      version:'E30.2.5',
-      strategy:'smart target sync',
+      version:'E30.2.6',
+      strategy:'ultra lean smart sync',
       targets:targets.length,
       searches,
       games_matched:matched,
@@ -625,7 +613,7 @@ async function runSync(context){
   }catch(err){
     const msg=String(err);
     await logFinish(db,runId,'error',0,0,0,msg);
-    return json({ok:false,version:'E30.2.5',error:msg},500);
+    return json({ok:false,version:'E30.2.6',error:msg},500);
   }
 }
 
@@ -640,8 +628,8 @@ export async function onRequestGet(context){
 
   return json({
     ok:true,
-    version:'E30.2.5',
-    strategy:'smart target sync',
+    version:'E30.2.6',
+    strategy:'ultra lean smart sync',
     current_targets:targets.map(m=>({
       id:m.id,
       opponent:m.opponent,
