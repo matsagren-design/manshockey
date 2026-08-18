@@ -1,4 +1,3 @@
-// E30.5.8 FORCE DEPLOY
 function json(data,status=200){
   return new Response(JSON.stringify(data),{
     status,
@@ -46,7 +45,7 @@ async function fetchText(url,timeout=12000){
   try{
     const r=await fetch(url,{
       headers:{
-        'user-agent':'Mozilla/5.0 MansHockey/30.5.8',
+        'user-agent':'Mozilla/5.0 MansHockey/30.5.8.1',
         'accept':'application/json,text/javascript,*/*;q=0.8',
         'referer':'https://bchl.ca/'
       },
@@ -75,28 +74,46 @@ async function fetchText(url,timeout=12000){
 }
 
 function parsePayload(raw){
-  const text=String(raw||'').trim();
+  let text=String(raw||'').trim();
   if(!text)return {ok:false,error:'empty body',data:null};
 
+  // 1. Normal JSON.
   try{
     return {ok:true,format:'json',data:JSON.parse(text)};
   }catch{}
 
-  // HockeyTech frontend normally requests JSONP.
+  // 2. HockeyTech sometimes returns parenthesized JSON:
+  //    ({...}) or ([...])
+  if(text.startsWith('(') && text.endsWith(')')){
+    const inner=text.slice(1,-1).trim();
+    try{
+      return {
+        ok:true,
+        format:'parenthesized-json',
+        data:JSON.parse(inner)
+      };
+    }catch{}
+  }
+
+  // 3. Traditional JSONP: callback({...})
   const first=text.indexOf('(');
   const last=text.lastIndexOf(')');
 
-  if(first>0&&last>first){
+  if(first>0 && last>first){
     const inner=text.slice(first+1,last).trim();
     try{
-      return {ok:true,format:'jsonp',data:JSON.parse(inner)};
+      return {
+        ok:true,
+        format:'jsonp',
+        data:JSON.parse(inner)
+      };
     }catch{}
   }
 
   return {
     ok:false,
     format:'text',
-    error:'not JSON/JSONP',
+    error:'not JSON/parenthesized-JSON/JSONP',
     data:null,
     preview:cleanSpace(text).slice(0,700)
   };
@@ -111,6 +128,14 @@ function firstValue(obj,names){
     }
   }
 
+  if(Array.isArray(obj)){
+    for(const v of obj){
+      const hit=firstValue(v,names);
+      if(hit!==null)return hit;
+    }
+    return null;
+  }
+
   for(const v of Object.values(obj)){
     if(v&&typeof v==='object'){
       const hit=firstValue(v,names);
@@ -121,8 +146,28 @@ function firstValue(obj,names){
   return null;
 }
 
+function summarizeObject(v){
+  if(v===null||v===undefined)return v;
+  if(typeof v!=='object')return v;
+  if(Array.isArray(v))return {array_length:v.length};
+
+  const out={};
+
+  for(const [k,val] of Object.entries(v).slice(0,35)){
+    if(val===null||['string','number','boolean'].includes(typeof val)){
+      out[k]=typeof val==='string' ? val.slice(0,220) : val;
+    }else if(Array.isArray(val)){
+      out[k]={array_length:val.length};
+    }else{
+      out[k]={object:true};
+    }
+  }
+
+  return out;
+}
+
 function arrayCandidates(obj,path='$',out=[]){
-  if(out.length>=30)return out;
+  if(out.length>=40)return out;
 
   if(Array.isArray(obj)){
     out.push({
@@ -131,7 +176,7 @@ function arrayCandidates(obj,path='$',out=[]){
       first:obj.length ? summarizeObject(obj[0]) : null
     });
 
-    for(let i=0;i<Math.min(obj.length,2);i++){
+    for(let i=0;i<Math.min(obj.length,3);i++){
       if(obj[i]&&typeof obj[i]==='object'){
         arrayCandidates(obj[i],`${path}[${i}]`,out);
       }
@@ -151,60 +196,137 @@ function arrayCandidates(obj,path='$',out=[]){
   return out;
 }
 
-function summarizeObject(v){
-  if(v===null||v===undefined)return v;
-  if(typeof v!=='object')return v;
-  if(Array.isArray(v))return {array_length:v.length};
+function keysLower(o){
+  return Object.keys(o||{}).map(k=>k.toLowerCase());
+}
 
-  const out={};
-  for(const [k,val] of Object.entries(v).slice(0,25)){
-    if(val===null||['string','number','boolean'].includes(typeof val)){
-      out[k]=typeof val==='string' ? val.slice(0,180) : val;
-    }else if(Array.isArray(val)){
-      out[k]={array_length:val.length};
-    }else{
-      out[k]={object:true};
-    }
-  }
-  return out;
+function looksLikeGame(x){
+  if(!x||typeof x!=='object'||Array.isArray(x))return false;
+
+  const k=keysLower(x);
+
+  // HockeyTech daily schedule object
+  if(('id' in x) && x.homeTeam && x.visitingTeam)return true;
+
+  // Schedule table row variants
+  const gameId=k.some(v=>v==='game_id'||v==='gameid'||v==='id');
+  const home=k.some(v=>/home.*team|home_team/.test(v));
+  const away=k.some(v=>/visiting.*team|away.*team|visitor.*team/.test(v));
+  const date=k.some(v=>v==='date'||v.includes('game_date')||v.includes('game_date_time'));
+
+  return gameId && (home||away||date);
 }
 
 function gameLikeRows(obj,out=[],path='$'){
-  if(out.length>=20)return out;
+  if(out.length>=30)return out;
 
   if(Array.isArray(obj)){
     for(let i=0;i<obj.length;i++){
       const x=obj[i];
+
+      if(looksLikeGame(x)){
+        out.push({
+          path:`${path}[${i}]`,
+          row:summarizeObject(x)
+        });
+
+        if(out.length>=30)return out;
+      }
+
       if(x&&typeof x==='object'){
-        const keys=Object.keys(x).map(k=>k.toLowerCase());
-        const scoreish=keys.some(k=>/home.*score|away.*score|home.*goal|away.*goal|game.*id|game_id/.test(k));
-        const teamish=keys.some(k=>/home.*team|away.*team|visiting.*team|team.*name/.test(k));
-        const dateish=keys.some(k=>/date|game_date|game.*date/.test(k));
-
-        if((scoreish&&teamish)||(teamish&&dateish)){
-          out.push({
-            path:`${path}[${i}]`,
-            row:summarizeObject(x)
-          });
-          if(out.length>=20)return out;
-        }
-
         gameLikeRows(x,out,`${path}[${i}]`);
+        if(out.length>=30)return out;
       }
     }
+
     return out;
   }
 
   if(obj&&typeof obj==='object'){
+    if(looksLikeGame(obj)){
+      out.push({
+        path,
+        row:summarizeObject(obj)
+      });
+    }
+
     for(const [k,v] of Object.entries(obj)){
       if(v&&typeof v==='object'){
         gameLikeRows(v,out,`${path}.${k}`);
-        if(out.length>=20)return out;
+        if(out.length>=30)return out;
       }
     }
   }
 
   return out;
+}
+
+function normalizeDailyGame(g){
+  if(!g||typeof g!=='object')return null;
+
+  const home=g.homeTeam?.info||{};
+  const away=g.visitingTeam?.info||g.awayTeam?.info||{};
+
+  if(!g.id || !home.name || !away.name)return null;
+
+  return {
+    game_id:String(g.id),
+    season_id:String(
+      g.homeTeam?.seasonStats?.seasonId ||
+      g.visitingTeam?.seasonStats?.seasonId ||
+      ''
+    ),
+    home_team:{
+      id:home.id??null,
+      name:home.name||'',
+      city:home.city||'',
+      abbreviation:home.abbreviation||''
+    },
+    away_team:{
+      id:away.id??null,
+      name:away.name||'',
+      city:away.city||'',
+      abbreviation:away.abbreviation||''
+    },
+    home_goals:
+      g.homeTeam?.stats?.goalCount ??
+      g.homeTeam?.stats?.goals ??
+      null,
+    away_goals:
+      g.visitingTeam?.stats?.goalCount ??
+      g.visitingTeam?.stats?.goals ??
+      null,
+    raw_status:
+      g.gameStatus ||
+      g.status ||
+      g.game_status ||
+      null
+  };
+}
+
+function collectDailyGames(data){
+  const out=[];
+
+  function walk(v){
+    if(Array.isArray(v)){
+      for(const x of v)walk(x);
+      return;
+    }
+
+    if(!v||typeof v!=='object')return;
+
+    const n=normalizeDailyGame(v);
+    if(n && !out.some(x=>x.game_id===n.game_id)){
+      out.push(n);
+    }
+
+    for(const x of Object.values(v)){
+      if(x&&typeof x==='object')walk(x);
+    }
+  }
+
+  walk(data);
+  return out.slice(0,50);
 }
 
 async function targets(db){
@@ -251,10 +373,11 @@ async function probeUrl(name,url){
     format:parsed.format||null,
     error:parsed.error||null,
     preview:parsed.ok ? null : parsed.preview,
+    data:parsed.ok ? parsed.data : null,
     top_level:parsed.ok ? summarizeObject(parsed.data) : null,
-    arrays:parsed.ok ? arrayCandidates(parsed.data).slice(0,12) : [],
-    game_like_rows:parsed.ok ? gameLikeRows(parsed.data).slice(0,12) : [],
-    data:parsed.ok ? parsed.data : null
+    arrays:parsed.ok ? arrayCandidates(parsed.data).slice(0,16) : [],
+    game_like_rows:parsed.ok ? gameLikeRows(parsed.data).slice(0,20) : [],
+    daily_games:parsed.ok ? collectDailyGames(parsed.data) : []
   };
 }
 
@@ -269,15 +392,12 @@ async function runProbe(db){
     lang:'en'
   };
 
-  // 1) Bootstrap: let HockeyTech resolve "latest" for BCHL.
   const bootstrapUrl=safeUrl(`${PROD_URL}/feed/index.php`,{
     ...common,
     view:'bootstrap',
     season:'latest',
     page:'schedule',
     page_name:'schedule',
-    league:'',
-    league_code:'',
     division:-1,
     conference:-1,
     fmt:'json'
@@ -286,79 +406,72 @@ async function runProbe(db){
   const bootstrap=await probeUrl('bootstrap',bootstrapUrl);
 
   const b=bootstrap.data||{};
+
   const seasonId=firstValue(b,[
-    'current_season_id','season_id','seasonId','currentSeasonId','id'
+    'current_season_id','season_id','seasonId','currentSeasonId'
   ]);
 
   const leagueId=firstValue(b,[
     'current_league_id','league_id','leagueId','currentLeagueId'
   ]);
 
-  // 2) Direct schedule calls. We intentionally try a few parameter shapes
-  // because Statview revisions have used slightly different names.
-  const variants=[];
-
-  const baseSchedule={
-    ...common,
-    view:'schedule',
-    season:seasonId||'latest',
-    league:leagueId||undefined,
-    team:'all',
-    month:'all',
-    location:'all',
-    fmt:'json'
-  };
-
-  variants.push({
-    name:'schedule-standard',
-    url:safeUrl(`${PROD_URL}/feed/index.php`,baseSchedule)
-  });
-
-  variants.push({
-    name:'schedule-id-params',
-    url:safeUrl(`${PROD_URL}/feed/index.php`,{
-      ...common,
-      view:'schedule',
-      season_id:seasonId||'latest',
-      league_id:leagueId||undefined,
-      team_id:-1,
-      month:-1,
-      location:'all',
-      fmt:'json'
-    })
-  });
-
-  variants.push({
-    name:'schedule-all-teams',
-    url:safeUrl(`${PROD_URL}/feed/index.php`,{
-      ...common,
-      view:'schedule',
-      season:seasonId||'latest',
-      league:leagueId||undefined,
-      team_id:'all',
-      month:'all',
-      location:'all',
-      fmt:'json'
-    })
-  });
-
-  // 3) Daily schedule endpoint indicated by DailyScheduleCtrl evidence.
   const probeDate=ts[0]?.game_date
     ? String(ts[0].game_date).slice(0,10)
     : '2026-09-09';
 
-  variants.push({
-    name:'schedule-day',
-    url:safeUrl(`${PROD_URL}/feed/index.php`,{
-      ...common,
-      view:'schedule_day',
-      date:probeDate,
-      getDate:probeDate,
-      season:seasonId||'latest',
-      league:leagueId||undefined,
-      fmt:'json'
-    })
-  });
+  const variants=[
+    {
+      name:'schedule-standard',
+      url:safeUrl(`${PROD_URL}/feed/index.php`,{
+        ...common,
+        view:'schedule',
+        season:seasonId||'latest',
+        league:leagueId||undefined,
+        team:'all',
+        month:'all',
+        location:'all',
+        fmt:'json'
+      })
+    },
+    {
+      name:'schedule-id-params',
+      url:safeUrl(`${PROD_URL}/feed/index.php`,{
+        ...common,
+        view:'schedule',
+        season_id:seasonId||'latest',
+        league_id:leagueId||undefined,
+        team_id:-1,
+        month:-1,
+        location:'all',
+        fmt:'json'
+      })
+    },
+    {
+      name:'schedule-all-teams',
+      url:safeUrl(`${PROD_URL}/feed/index.php`,{
+        ...common,
+        view:'schedule',
+        season:seasonId||'latest',
+        league:leagueId||undefined,
+        team_id:'all',
+        month:'all',
+        location:'all',
+        fmt:'json'
+      })
+    },
+    {
+      name:'schedule-day',
+      url:safeUrl(`${PROD_URL}/feed/index.php`,{
+        ...common,
+        view:'schedule_day',
+        date:probeDate,
+        getDate:probeDate,
+        season:seasonId||'latest',
+        league:leagueId||undefined,
+        fmt:'json'
+      })
+    }
+  ];
 
   const results=[];
   for(const v of variants){
@@ -367,9 +480,9 @@ async function runProbe(db){
 
   return {
     ok:true,
-    version:'E30.5.8',
-    mode:'direct HockeyTech schedule probe',
-    strategy:'bootstrap latest BCHL season then call statviewfeed schedule endpoints directly; no D1 writes',
+    version:'E30.5.8.1',
+    mode:'HockeyTech parenthesized JSON fix',
+    strategy:'parse HockeyTech (...) payloads; resolve BCHL IDs and expose game rows; no D1 writes',
     config:{
       prod_url:PROD_URL,
       client_code:CLIENT_CODE,
@@ -383,15 +496,10 @@ async function runProbe(db){
       probe_date:probeDate
     },
     bootstrap:{
-      name:bootstrap.name,
-      url:bootstrap.url,
       status:bootstrap.status,
-      content_type:bootstrap.content_type,
-      body_chars:bootstrap.body_chars,
       parse_ok:bootstrap.parse_ok,
       format:bootstrap.format,
-      error:bootstrap.error,
-      preview:bootstrap.preview,
+      body_chars:bootstrap.body_chars,
       top_level:bootstrap.top_level,
       arrays:bootstrap.arrays
     },
@@ -399,15 +507,14 @@ async function runProbe(db){
       name:x.name,
       url:x.url,
       status:x.status,
-      content_type:x.content_type,
       body_chars:x.body_chars,
       parse_ok:x.parse_ok,
       format:x.format,
       error:x.error,
-      preview:x.preview,
       top_level:x.top_level,
       arrays:x.arrays,
-      game_like_rows:x.game_like_rows
+      game_like_rows:x.game_like_rows,
+      daily_games:x.daily_games
     }))
   };
 }
@@ -423,8 +530,8 @@ export async function onRequestGet(c){
 
   return json({
     ok:true,
-    version:'E30.5.8',
-    mode:'direct HockeyTech schedule probe',
+    version:'E30.5.8.1',
+    mode:'HockeyTech parenthesized JSON fix',
     targets:await targets(c.env.DB)
   });
 }
@@ -443,7 +550,7 @@ export async function onRequestPost(c){
   }catch(e){
     return json({
       ok:false,
-      version:'E30.5.8',
+      version:'E30.5.8.1',
       error:String(e)
     },500);
   }

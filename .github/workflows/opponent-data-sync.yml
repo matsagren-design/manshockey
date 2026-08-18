@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Check direct HockeyTech probe
+      - name: Check HockeyTech parser fix
         env:
           SYNC_TOKEN: ${{ secrets.MANSHOCKEY_SYNC_TOKEN }}
         run: |
@@ -21,7 +21,7 @@ jobs:
 
           jq -e '.ok == true' targets.json >/dev/null
 
-      - name: Probe direct HockeyTech schedule feed
+      - name: Probe parsed HockeyTech schedule data
         env:
           SYNC_TOKEN: ${{ secrets.MANSHOCKEY_SYNC_TOKEN }}
         run: |
@@ -37,7 +37,7 @@ jobs:
           jq -e '.ok == true' probe.json >/dev/null
 
           echo ""
-          echo "=== E30.5.8 DIRECT HOCKEYTECH SCHEDULE PROBE ==="
+          echo "=== E30.5.8.1 HOCKEYTECH PARSER FIX ==="
           jq -r '"Version: \(.version)"' probe.json
           jq -r '"Mode: \(.mode)"' probe.json
 
@@ -46,13 +46,30 @@ jobs:
           jq '.resolved' probe.json
 
           echo ""
-          echo "=== BOOTSTRAP ==="
-          jq '.bootstrap' probe.json
+          echo "=== BOOTSTRAP PARSE ==="
+          jq '.bootstrap | {
+            status,
+            parse_ok,
+            format,
+            body_chars,
+            top_level,
+            arrays
+          }' probe.json
 
           echo ""
-          echo "=== SCHEDULE RESULTS ==="
-          jq '.schedule_results' probe.json
+          echo "=== SCHEDULE SUMMARY ==="
+          jq -r '.schedule_results[] |
+            "\(.name): status=\(.status), parse=\(.parse_ok), format=\(.format), chars=\(.body_chars), game_like=\(.game_like_rows|length), daily_games=\(.daily_games|length)"' probe.json
 
           echo ""
-          echo "=== GAME-LIKE ROW COUNTS ==="
-          jq -r '.schedule_results[] | "\(.name): status=\(.status), parse=\(.parse_ok), rows=\(.game_like_rows|length), chars=\(.body_chars)"' probe.json
+          echo "=== DAILY GAMES ==="
+          jq '[.schedule_results[] |
+            select(.name=="schedule-day") |
+            .daily_games[]]' probe.json
+
+          echo ""
+          echo "=== FIRST GAME-LIKE ROWS ==="
+          jq '[.schedule_results[] | {
+            name,
+            rows:(.game_like_rows[0:5])
+          }]' probe.json
