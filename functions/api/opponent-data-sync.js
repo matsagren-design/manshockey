@@ -304,7 +304,7 @@ async function targets(db){
 function candidateDates(ts){
   const upcoming=new Date(ts);
 
-  // E30.5.3 proven fast window; keep architecture unchanged.
+// E30.5.4 shared cache window; architecture unchanged.
   const end=new Date(upcoming);
   end.setUTCDate(end.getUTCDate()-90);
 
