@@ -51,20 +51,15 @@ function gameDate(value){
   return Number.isFinite(d.getTime()) ? d : null;
 }
 
-function albertaParts(value){
+function albertaDateKey(value){
   const d=gameDate(value);
-  if(!d) return null;
+  if(!d)return null;
   const parts=new Intl.DateTimeFormat('en-CA',{
     timeZone:'America/Edmonton',
     year:'numeric',month:'2-digit',day:'2-digit'
   }).formatToParts(d);
   const get=t=>parts.find(p=>p.type===t)?.value;
-  return {year:get('year'),month:get('month'),day:get('day')};
-}
-
-function albertaDateKey(value){
-  const p=albertaParts(value);
-  return p ? `${p.year}-${p.month}-${p.day}` : null;
+  return `${get('year')}-${get('month')}-${get('day')}`;
 }
 
 function humanDate(value){
@@ -81,20 +76,54 @@ function normalizeExtractedDate(value){
   const m=String(value).match(/\b(20\d{2})-(\d{2})-(\d{2})\b/);
   if(m)return `${m[1]}-${m[2]}-${m[3]}`;
   const d=new Date(value);
-  if(!Number.isFinite(d.getTime()))return null;
-  return albertaDateKey(d);
+  return Number.isFinite(d.getTime()) ? albertaDateKey(d) : null;
 }
 
-function isGenericFlo(url=''){
-  const u=String(url||'').toLowerCase().replace(/\/+$/,'');
-  return !u || u==='https://www.flohockey.tv' || u==='https://flohockey.tv';
-}
-
-function safeHttpUrl(value=''){
+function safeUrl(value=''){
   try{
     const u=new URL(value);
-    return u.protocol==='https:' || u.protocol==='http:' ? u.toString() : '';
+    if(u.protocol!=='https:' && u.protocol!=='http:') return '';
+    return u.toString();
   }catch{return ''}
+}
+
+/*
+ Strict link guards
+ ------------------
+ tv_link:
+   ONLY a specific FloHockey event page.
+   Generic homepage, BCHL redirect links, partner tracking links etc are rejected.
+
+ game_center_url:
+   ONLY an official BCHL stats Game Center page.
+*/
+function validFloEventUrl(value=''){
+  try{
+    const u=new URL(value);
+    const host=u.hostname.toLowerCase().replace(/^www\./,'');
+    if(host!=='flohockey.tv') return '';
+    if(!/^\/events\/[^/]+/i.test(u.pathname)) return '';
+    return u.toString();
+  }catch{return ''}
+}
+
+function validBchlGameCenterUrl(value=''){
+  try{
+    const u=new URL(value);
+    const host=u.hostname.toLowerCase().replace(/^www\./,'');
+    if(host!=='bchl.ca') return '';
+    if(!/^\/stats\/game-center\/\d+/i.test(u.pathname)) return '';
+    // Remove tracking noise, preserve canonical game center URL.
+    return `${u.protocol}//${u.host}${u.pathname}`;
+  }catch{return ''}
+}
+
+function genericFlo(value=''){
+  try{
+    const u=new URL(value);
+    const host=u.hostname.toLowerCase().replace(/^www\./,'');
+    return host==='flohockey.tv' && (u.pathname==='/' || u.pathname==='');
+  }catch{return !value}
 }
 
 async function adminSessionOK(request,env){
@@ -119,7 +148,7 @@ function bearerOK(request,env){
 async function logStart(db){
   const r=await db.prepare(
     `INSERT INTO sync_runs(source,status,message)
-     VALUES ('BCHL','running','E30.2.2 target-driven sync start')`
+     VALUES ('BCHL','running','E30.2.3 Link Guard start')`
   ).run();
   return r.meta?.last_row_id||null;
 }
@@ -138,13 +167,6 @@ async function logFinish(db,id,status,found,matched,updated,message){
   `).bind(status,found||0,matched||0,updated||0,message||'',id).run();
 }
 
-/*
-Target selection:
-1) Recently played / current games are highest priority.
-2) Then upcoming games, so GameCenter/FloHockey links can be enriched.
-3) Everything is constrained to the 2026/27 season already stored in D1.
-Only four targets are processed per run to keep Firecrawl usage bounded.
-*/
 async function selectTargets(db){
   const now=Date.now();
   const pastCutoff=new Date(now-1000*60*60*24*10);
@@ -153,7 +175,7 @@ async function selectTargets(db){
   const all=(await db.prepare(`
     SELECT id,external_id,opponent,game_date,home_away,arena,city,
            game_status,result,brooks_goals,opponent_goals,tv_link,
-           season_type,source_url
+           game_center_url,season_type,source_url
       FROM matches
      WHERE game_date>=? AND game_date<=?
      ORDER BY game_date
@@ -174,7 +196,6 @@ async function selectTargets(db){
            t<=futureCutoff.getTime();
   });
 
-  // If the next match is more than 21 days away, still enrich the next two.
   const next=all.filter(m=>{
     const t=new Date(m.game_date).getTime();
     return Number.isFinite(t) && t>=now;
@@ -206,7 +227,7 @@ async function firecrawlSearch(env,target){
     },
     body:JSON.stringify({
       query,
-      limit:5,
+      limit:6,
       includeDomains:['bchl.ca'],
       country:'CA',
       location:'Alberta,Canada',
@@ -223,7 +244,7 @@ async function firecrawlSearch(env,target){
   }
 
   return (data?.data?.web||[]).map(x=>({
-    url:safeHttpUrl(x.url),
+    url:safeUrl(x.url),
     title:x.title||'',
     description:x.description||''
   })).filter(x=>x.url);
@@ -234,8 +255,8 @@ function candidateRank(x,target){
   const text=`${x.title} ${x.description}`.toLowerCase();
   const opp=String(target.opponent||'').toLowerCase();
   let score=0;
-  if(u.includes('/stats/game-center/'))score+=100;
-  if(u.includes('/stats/daily-schedule'))score+=40;
+  if(u.includes('/stats/game-center/'))score+=120;
+  if(u.includes('/stats/daily-schedule'))score+=45;
   if(u.includes('/stats/schedule'))score+=25;
   if(text.includes('brooks'))score+=20;
   if(text.includes(opp))score+=20;
@@ -261,19 +282,23 @@ async function scrapeCandidate(env,url,target){
 
   const dateKey=albertaDateKey(target.game_date);
   const prompt=`
-This page may describe a BCHL hockey game.
-Target match:
+Target BCHL match:
 - Brooks Bandits
 - opponent: ${target.opponent}
-- date in Alberta: ${dateKey}
+- Alberta date: ${dateKey}
 - Brooks is ${String(target.home_away).toLowerCase()==='hemma'?'HOME':'AWAY'}
 
-Return is_target_game=true ONLY if the visible page clearly describes this exact matchup on this exact date.
-Do not infer or invent missing facts.
-If it is the target game, return visible:
-date as YYYY-MM-DD, away_team, home_team, scores if shown, status,
-the BCHL game-center URL if present, and the FloHockey/FloSports watch URL if present.
-If not the exact target, set is_target_game=false.
+Set is_target_game=true ONLY if this page visibly describes that exact game.
+Return:
+- date YYYY-MM-DD
+- away_team
+- home_team
+- visible scores, otherwise null
+- visible status
+- official BCHL Game Center URL if present
+- DIRECT FloHockey event URL if present.
+For watch_url, do NOT return a BCHL redirect, generic BCHL stats URL,
+generic FloHockey homepage, or invented link.
 `;
 
   const r=await fetch(FIRECRAWL_SCRAPE_URL,{
@@ -295,7 +320,6 @@ If not the exact target, set is_target_game=false.
 
   const data=await r.json().catch(()=>null);
   if(!r.ok || !data?.success)return null;
-
   const j=data?.data?.json||data?.json||null;
   return j && typeof j==='object' ? j : null;
 }
@@ -315,45 +339,58 @@ function verifyExtract(target,j){
   const opp=canonTeam(target.opponent);
 
   if(brooksHome){
-    if(!isBrooks(j.home_team) || away!==opp)return {ok:false,reason:'teams-mismatch'};
+    if(!isBrooks(j.home_team) || away!==opp)
+      return {ok:false,reason:'teams-mismatch'};
   }else{
-    if(!isBrooks(j.away_team) || home!==opp)return {ok:false,reason:'teams-mismatch'};
+    if(!isBrooks(j.away_team) || home!==opp)
+      return {ok:false,reason:'teams-mismatch'};
   }
 
   return {ok:true,brooksHome};
 }
 
-async function enrichTarget(db,target,j,brooksHome,sourceUrl){
+async function enrichTarget(db,target,j,brooksHome,candidateUrl){
+  const changed=[];
+  const rejectedLinks=[];
+
+  // BCHL Game Center: separate field.
+  const gc=
+    validBchlGameCenterUrl(j.game_center_url) ||
+    validBchlGameCenterUrl(candidateUrl);
+
+  if(gc && gc!==String(target.game_center_url||'')){
+    await db.prepare(
+      'UPDATE matches SET game_center_url=?, updated_at=CURRENT_TIMESTAMP WHERE id=?'
+    ).bind(gc,target.id).run();
+    changed.push('game_center_url');
+  }
+
+  // FloHockey: STRICT event-only guard.
+  const rawWatch=safeUrl(j.watch_url);
+  const flo=validFloEventUrl(rawWatch);
+
+  if(rawWatch && !flo){
+    rejectedLinks.push({field:'tv_link',value:rawWatch,reason:'not-specific-flohockey-event'});
+  }
+
+  if(flo && flo!==String(target.tv_link||'')){
+    // Replace empty/generic/wrong links only with a validated direct event URL.
+    await db.prepare(
+      'UPDATE matches SET tv_link=?, updated_at=CURRENT_TIMESTAMP WHERE id=?'
+    ).bind(flo,target.id).run();
+    changed.push('tv_link');
+  }
+
   const status=statusSv(j.status);
   const awayScore=parseScore(j.away_score);
   const homeScore=parseScore(j.home_score);
 
-  let updatedFields=[];
-  let resultUpdate=null;
-
-  // Prefer a specific event link over the existing generic FloHockey homepage.
-  const watch=safeHttpUrl(j.watch_url);
-  if(watch && isGenericFlo(target.tv_link)){
-    await db.prepare(
-      'UPDATE matches SET tv_link=?, updated_at=CURRENT_TIMESTAMP WHERE id=?'
-    ).bind(watch,target.id).run();
-    updatedFields.push('tv_link');
-  }
-
-  // Keep manual/import source_url intact unless empty; game center is useful enrichment.
-  const gc=safeHttpUrl(j.game_center_url)||safeHttpUrl(sourceUrl);
-  if(gc && !target.source_url){
-    await db.prepare(
-      'UPDATE matches SET source_url=?, updated_at=CURRENT_TIMESTAMP WHERE id=?'
-    ).bind(gc,target.id).run();
-    updatedFields.push('source_url');
-  }
-
-  if(status==='Uppskjuten' || status==='Inställd'){
+  if((status==='Uppskjuten' || status==='Inställd') &&
+     status!==String(target.game_status||'')){
     await db.prepare(
       'UPDATE matches SET game_status=?, updated_at=CURRENT_TIMESTAMP WHERE id=?'
     ).bind(status,target.id).run();
-    updatedFields.push('game_status');
+    changed.push('game_status');
   }
 
   if((status==='Live'||status==='Slut') &&
@@ -362,21 +399,34 @@ async function enrichTarget(db,target,j,brooksHome,sourceUrl){
     const opponentGoals=brooksHome?awayScore:homeScore;
     const result=`${brooksGoals}-${opponentGoals}`;
 
-    await db.prepare(`
-      UPDATE matches
-         SET brooks_goals=?,
-             opponent_goals=?,
-             result=?,
-             game_status=?,
-             updated_at=CURRENT_TIMESTAMP
-       WHERE id=?
-    `).bind(brooksGoals,opponentGoals,result,status,target.id).run();
+    const scoreChanged=
+      Number(target.brooks_goals)!==brooksGoals ||
+      Number(target.opponent_goals)!==opponentGoals ||
+      String(target.result||'')!==result ||
+      String(target.game_status||'')!==status;
 
-    resultUpdate={brooksGoals,opponentGoals,result,status};
-    updatedFields.push('score','game_status');
+    if(scoreChanged){
+      await db.prepare(`
+        UPDATE matches
+           SET brooks_goals=?,
+               opponent_goals=?,
+               result=?,
+               game_status=?,
+               updated_at=CURRENT_TIMESTAMP
+         WHERE id=?
+      `).bind(brooksGoals,opponentGoals,result,status,target.id).run();
+      changed.push('score','game_status');
+    }
   }
 
-  return {updatedFields,resultUpdate};
+  return {
+    changed:[...new Set(changed)],
+    rejectedLinks,
+    validated:{
+      game_center_url:gc||'',
+      tv_link:flo||''
+    }
+  };
 }
 
 async function runSync(context){
@@ -387,21 +437,15 @@ async function runSync(context){
     const targets=await selectTargets(db);
 
     if(targets.length===0){
-      const msg='E30.2.2: inga relevanta 2026/27-matcher att kontrollera just nu.';
+      const msg='E30.2.3: inga relevanta 2026/27-matcher att kontrollera.';
       await logFinish(db,runId,'success',0,0,0,msg);
       return json({
-        ok:true,
-        version:'E30.2.2',
-        targets:0,
-        games_matched:0,
-        games_updated:0,
-        message:msg
+        ok:true,version:'E30.2.3',targets:0,
+        games_matched:0,games_updated:0,message:msg
       });
     }
 
-    let searched=0;
-    let matched=0;
-    let updated=0;
+    let searches=0,matched=0,updated=0;
     const details=[];
 
     for(const target of targets){
@@ -409,15 +453,15 @@ async function runSync(context){
         id:target.id,
         opponent:target.opponent,
         date:albertaDateKey(target.game_date),
-        search_results:0,
         matched:false,
-        updated_fields:[],
+        changed:[],
+        rejected_links:[],
         notes:[]
       };
 
       try{
         const results=await firecrawlSearch(context.env,target);
-        searched++;
+        searches++;
         item.search_results=results.length;
 
         const ranked=[...results]
@@ -434,9 +478,8 @@ async function runSync(context){
           if(verified.ok){
             found={candidate,extracted,verified};
             break;
-          }else{
-            item.notes.push(`${candidate.url}: ${verified.reason}`);
           }
+          item.notes.push(`${candidate.url}: ${verified.reason}`);
         }
 
         if(!found){
@@ -447,16 +490,18 @@ async function runSync(context){
 
         matched++;
         item.matched=true;
-        item.game_center_url=safeHttpUrl(found.extracted.game_center_url)||found.candidate.url;
-        item.watch_url=safeHttpUrl(found.extracted.watch_url)||'';
 
-        const e=await enrichTarget(
+        const enrichment=await enrichTarget(
           db,target,found.extracted,found.verified.brooksHome,found.candidate.url
         );
 
-        item.updated_fields=e.updatedFields;
-        if(e.updatedFields.length>0)updated++;
-        if(e.resultUpdate)item.result=e.resultUpdate;
+        item.changed=enrichment.changed;
+        item.rejected_links=enrichment.rejectedLinks;
+        item.game_center_url=enrichment.validated.game_center_url;
+        item.tv_link=enrichment.validated.tv_link;
+
+        if(enrichment.changed.length>0)updated++;
+
       }catch(err){
         item.notes.push(String(err));
       }
@@ -464,17 +509,15 @@ async function runSync(context){
       details.push(item);
     }
 
-    // Lack of indexed search results is not a workflow failure.
-    // This is intentional: pre-game pages may not exist/index yet.
-    const msg=`E30.2.2: ${targets.length} D1-matcher kontrollerade, ${matched} säkert matchade, ${updated} berikade/uppdaterade.`;
+    const msg=`E30.2.3: ${targets.length} D1-matcher kontrollerade, ${matched} säkert matchade, ${updated} faktiskt förbättrade.`;
     await logFinish(db,runId,'success',targets.length,matched,updated,msg);
 
     return json({
       ok:true,
-      version:'E30.2.2',
-      strategy:'D1 target-driven',
+      version:'E30.2.3',
+      strategy:'D1 target-driven + strict link guard',
       targets:targets.length,
-      searches:searched,
+      searches,
       games_matched:matched,
       games_updated:updated,
       message:msg,
@@ -484,7 +527,7 @@ async function runSync(context){
   }catch(err){
     const msg=String(err);
     await logFinish(db,runId,'error',0,0,0,msg);
-    return json({ok:false,version:'E30.2.2',error:msg},500);
+    return json({ok:false,version:'E30.2.3',error:msg},500);
   }
 }
 
@@ -497,8 +540,8 @@ export async function onRequestGet(context){
 
   return json({
     ok:true,
-    version:'E30.2.2',
-    strategy:'D1 target-driven',
+    version:'E30.2.3',
+    strategy:'D1 target-driven + strict link guard',
     firecrawl_configured:Boolean(context.env.FIRECRAWL_API_KEY),
     sync_token_configured:Boolean(context.env.SYNC_TOKEN),
     current_targets:targets.map(m=>({
@@ -507,7 +550,8 @@ export async function onRequestGet(context){
       game_date:m.game_date,
       home_away:m.home_away,
       game_status:m.game_status,
-      has_specific_tv_link:!isGenericFlo(m.tv_link)
+      tv_link:m.tv_link||'',
+      game_center_url:m.game_center_url||''
     })),
     runs:latest
   });
