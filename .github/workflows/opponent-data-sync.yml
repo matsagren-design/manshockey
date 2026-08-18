@@ -1,49 +1,32 @@
 name: Opponent Data Sync
-
 on:
   workflow_dispatch:
   schedule:
     - cron: '17 5 * * *'
-
 jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
       - name: Get upcoming opponents
-        id: targets
         env:
           SYNC_TOKEN: ${{ secrets.MANSHOCKEY_SYNC_TOKEN }}
         run: |
           set -euo pipefail
-          curl --fail --silent --show-error --max-time 30 \
-            -H "Authorization: Bearer $SYNC_TOKEN" \
-            "https://manshockey.com/api/opponent-data-sync" > targets.json
+          curl --fail --silent --show-error --max-time 30 -H "Authorization: Bearer $SYNC_TOKEN" https://manshockey.com/api/opponent-data-sync > targets.json
           cat targets.json
-          jq -e '.ok == true' targets.json >/dev/null
-
+          jq -e '.ok==true' targets.json >/dev/null
       - name: Sync opponents one request at a time
         env:
           SYNC_TOKEN: ${{ secrets.MANSHOCKEY_SYNC_TOKEN }}
         run: |
           set -euo pipefail
-          jq -c '.targets[]' targets.json | while read -r target; do
-            id="$(echo "$target" | jq -r '.match_id')"
-            opponent="$(echo "$target" | jq -r '.opponent')"
-            echo "=== Sync: $opponent (match $id) ==="
-            ok=0
-            for attempt in 1 2; do
-              if curl --fail --silent --show-error --max-time 90 \
-                -H "Authorization: Bearer $SYNC_TOKEN" \
-                -H "Content-Type: application/json" \
-                --data "{\"match_id\":$id}" \
-                "https://manshockey.com/api/opponent-data-sync" > result.json; then
-                cat result.json
-                if jq -e '.ok == true' result.json >/dev/null; then ok=1; break; fi
-              fi
-              echo "Attempt $attempt failed; retrying..."
-              sleep 5
-            done
-            if [ "$ok" -ne 1 ]; then
-              echo "::warning::Sync failed for $opponent; continuing with next opponent."
+          jq -c '.targets[]' targets.json | while read -r t; do
+            id=$(echo "$t"|jq -r '.match_id'); name=$(echo "$t"|jq -r '.opponent')
+            echo "=== $name / match $id ==="
+            if curl --fail --silent --show-error --max-time 110 -H "Authorization: Bearer $SYNC_TOKEN" -H "Content-Type: application/json" --data "{\"match_id\":$id}" https://manshockey.com/api/opponent-data-sync > result.json; then
+              cat result.json
+              jq -e '.ok==true' result.json >/dev/null || echo "::warning::$name returned ok=false"
+            else
+              echo "::warning::$name timed out/failed; continuing."
             fi
           done
