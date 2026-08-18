@@ -1,26 +1,49 @@
 name: Opponent Data Sync
 
 on:
-  schedule:
-    - cron: '30 9 * * *'
-    - cron: '30 21 * * *'
   workflow_dispatch:
+  schedule:
+    - cron: '17 5 * * *'
 
 jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
-      - name: Sync opponent data
+      - name: Get upcoming opponents
+        id: targets
         env:
           SYNC_TOKEN: ${{ secrets.MANSHOCKEY_SYNC_TOKEN }}
         run: |
-          if [ -z "$SYNC_TOKEN" ]; then
-            echo "Missing GitHub secret MANSHOCKEY_SYNC_TOKEN"
-            exit 1
-          fi
-
-          curl --fail-with-body \
-            -X POST \
+          set -euo pipefail
+          curl --fail --silent --show-error --max-time 30 \
             -H "Authorization: Bearer $SYNC_TOKEN" \
-            -H "Accept: application/json" \
-            https://manshockey.com/api/opponent-data-sync
+            "https://manshockey.com/api/opponent-data-sync" > targets.json
+          cat targets.json
+          jq -e '.ok == true' targets.json >/dev/null
+
+      - name: Sync opponents one request at a time
+        env:
+          SYNC_TOKEN: ${{ secrets.MANSHOCKEY_SYNC_TOKEN }}
+        run: |
+          set -euo pipefail
+          jq -c '.targets[]' targets.json | while read -r target; do
+            id="$(echo "$target" | jq -r '.match_id')"
+            opponent="$(echo "$target" | jq -r '.opponent')"
+            echo "=== Sync: $opponent (match $id) ==="
+            ok=0
+            for attempt in 1 2; do
+              if curl --fail --silent --show-error --max-time 90 \
+                -H "Authorization: Bearer $SYNC_TOKEN" \
+                -H "Content-Type: application/json" \
+                --data "{\"match_id\":$id}" \
+                "https://manshockey.com/api/opponent-data-sync" > result.json; then
+                cat result.json
+                if jq -e '.ok == true' result.json >/dev/null; then ok=1; break; fi
+              fi
+              echo "Attempt $attempt failed; retrying..."
+              sleep 5
+            done
+            if [ "$ok" -ne 1 ]; then
+              echo "::warning::Sync failed for $opponent; continuing with next opponent."
+            fi
+          done
