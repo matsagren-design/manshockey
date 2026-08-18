@@ -1,25 +1,68 @@
-import React,{useEffect,useState}from'react';
+import React,{useEffect,useRef,useState}from'react';
 import{Brain,RefreshCw,TrendingUp}from'lucide-react';
 
-export function MatchIntelligence({matchId}){
+export function MatchIntelligence({match}){
   const[data,setData]=useState(null);
   const[loading,setLoading]=useState(false);
+  const[error,setError]=useState('');
+  const requestSeq=useRef(0);
+
+  const matchId=match?.id;
+  const opponent=match?.opponent||'';
 
   async function load(force=false){
     if(!matchId)return;
+
+    const seq=++requestSeq.current;
     setLoading(true);
+    setError('');
+
+    // Never display the previous match's intelligence while a new one loads.
+    setData(null);
+
     try{
-      const r=await fetch('/api/opponent-intel'+(force?'':`?match_id=${matchId}`),{
-        method:force?'POST':'GET',
-        headers:force?{'content-type':'application/json'}:undefined,
-        body:force?JSON.stringify({match_id:matchId}):undefined
-      });
+      const r=await fetch(
+        force?'/api/opponent-intel':`/api/opponent-intel?match_id=${encodeURIComponent(matchId)}`,
+        {
+          method:force?'POST':'GET',
+          headers:force?{'content-type':'application/json'}:undefined,
+          body:force?JSON.stringify({match_id:matchId}):undefined
+        }
+      );
+
       const d=await r.json();
-      if(d.ok)setData(d.item);
-    }finally{setLoading(false)}
+
+      // Ignore a slower response from a previously selected match.
+      if(seq!==requestSeq.current)return;
+
+      if(!d.ok){
+        setError(d.error||'Analysen kunde inte laddas.');
+        return;
+      }
+
+      const item=d.item;
+
+      // Frontend binding guard: never render intelligence for another match/opponent.
+      if(Number(item?.match_id)!==Number(matchId) ||
+         String(item?.opponent||'')!==String(opponent)){
+        setError('Analysen matchade inte vald match och visades därför inte.');
+        return;
+      }
+
+      setData(item);
+    }catch(e){
+      if(seq===requestSeq.current)setError(String(e));
+    }finally{
+      if(seq===requestSeq.current)setLoading(false);
+    }
   }
 
-  useEffect(()=>{load(false)},[matchId]);
+  useEffect(()=>{
+    requestSeq.current++;
+    setData(null);
+    setError('');
+    if(matchId)load(false);
+  },[matchId,opponent]);
 
   if(!matchId)return null;
 
@@ -27,15 +70,18 @@ export function MatchIntelligence({matchId}){
     <div className="intel-head">
       <div>
         <span className="eyebrow">MATCH INTELLIGENCE</span>
-        <h3><Brain size={18}/> Motståndaranalys</h3>
+        <h3><Brain size={18}/> Motståndaranalys · {opponent}</h3>
       </div>
       <button onClick={()=>load(true)} disabled={loading}>
         <RefreshCw size={15}/>{loading?'Uppdaterar…':'Uppdatera'}
       </button>
     </div>
 
-    {!data ? <p>Analys saknas ännu.</p> :
-    <>
+    {loading&&<p>Hämtar analys för {opponent}…</p>}
+    {!loading&&error&&<p>{error}</p>}
+    {!loading&&!error&&!data&&<p>Analys saknas ännu.</p>}
+
+    {!loading&&!error&&data&&<>
       <p className="intel-summary">{data.ai_summary||data.form_summary}</p>
 
       <div className="intel-grid">

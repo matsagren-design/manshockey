@@ -38,12 +38,12 @@ function summarizeForm(rows){
   for(const r of rows){
     const p=resultParts(r.result);
     if(!p)continue;
-    const isBrooksHome=String(r.home_away||'').toLowerCase()==='hemma';
-    const oppFor=isBrooksHome ? p.against : p.against;
-    const oppAgainst=isBrooksHome ? p.for : p.for;
 
-    // result is stored Brooks-opponent, so opponent perspective is reversed
+    // result is stored Brooks-opponent. Reverse to opponent perspective.
+    const oppFor=p.against;
+    const oppAgainst=p.for;
     const win=oppFor>oppAgainst;
+
     if(win)wins++; else losses++;
     gf+=oppFor; ga+=oppAgainst;
 
@@ -52,16 +52,12 @@ function summarizeForm(rows){
       opponent:'Brooks Bandits',
       result:`${oppFor}-${oppAgainst}`,
       outcome:win?'W':'L',
-      venue:isBrooksHome?'Away':'Home'
+      venue:String(r.home_away||'').toLowerCase()==='hemma'?'Away':'Home'
     });
   }
 
   return {
-    games,
-    wins,
-    losses,
-    gf,
-    ga,
+    games,wins,losses,gf,ga,
     avg_for:games.length?Number((gf/games.length).toFixed(2)):0,
     avg_against:games.length?Number((ga/games.length).toFixed(2)):0
   };
@@ -73,17 +69,18 @@ function buildNarrative(target,form){
   }
 
   const trend=form.wins>form.losses?'positiv':form.wins<form.losses?'svag':'jämn';
+
   return `${target.opponent} har ${form.wins}-${form.losses} i de verifierade matcher som finns i D1. Formtrenden är ${trend}. Laget gör i snitt ${form.avg_for} mål och släpper in ${form.avg_against}.`;
 }
 
 async function generateAI(env,target,form){
   if(!env.OPENAI_API_KEY)return null;
 
-  const prompt = `Du är hockeyanalytiker.
+  const prompt=`Du är hockeyanalytiker.
 Skriv en kort svensk pre-game-analys inför Brooks Bandits mot ${target.opponent}.
 Använd endast följande verifierade data och hitta inte på något:
 ${JSON.stringify(form)}
-Fokusera på form, måltrend och vad Brooks bör vara vaksamma på.
+Om underlaget saknar verifierade matcher ska du uttryckligen säga att analysunderlaget är begränsat.
 Max 120 ord.`;
 
   const r=await fetch('https://api.openai.com/v1/chat/completions',{
@@ -109,12 +106,11 @@ async function compute(context,matchId){
   const db=context.env.DB;
 
   const target=await db.prepare(
-    'SELECT * FROM matches WHERE id=? LIMIT 1'
+    'SELECT id,opponent,game_date,home_away FROM matches WHERE id=? LIMIT 1'
   ).bind(matchId).first();
 
   if(!target)throw new Error('Match hittades inte');
 
-  // Use prior meetings with same opponent that have real results.
   const rows=(await db.prepare(`
     SELECT id,opponent,game_date,home_away,result,game_status
       FROM matches
@@ -133,11 +129,11 @@ async function compute(context,matchId){
   const homeGames=form.games.filter(g=>g.venue==='Home');
   const awayGames=form.games.filter(g=>g.venue==='Away');
 
-  const homeAwaySummary = form.games.length
+  const homeAwaySummary=form.games.length
     ? `Hemma ${homeGames.length} verifierade matcher, borta ${awayGames.length}.`
     : 'Ingen verifierad hemma/borta-serie ännu.';
 
-  const scoringSummary = form.games.length
+  const scoringSummary=form.games.length
     ? `${form.avg_for} mål framåt / ${form.avg_against} bakåt i snitt.`
     : 'Måltrend saknas ännu.';
 
@@ -170,7 +166,7 @@ async function compute(context,matchId){
   ).run();
 
   return {
-    match_id:target.id,
+    match_id:Number(target.id),
     opponent:target.opponent,
     form_summary:baseSummary,
     last_games:form.games,
@@ -188,19 +184,36 @@ export async function onRequestGet(context){
   const matchId=Number(url.searchParams.get('match_id')||0);
   if(!matchId)return json({ok:false,error:'match_id krävs'},400);
 
+  const target=await context.env.DB.prepare(
+    'SELECT id,opponent FROM matches WHERE id=? LIMIT 1'
+  ).bind(matchId).first();
+
+  if(!target)return json({ok:false,error:'Match hittades inte'},404);
+
   const cached=await context.env.DB.prepare(
     'SELECT * FROM opponent_intel WHERE match_id=? LIMIT 1'
   ).bind(matchId).first();
 
-  if(cached){
+  // Critical binding guard:
+  // cache is valid only if it still belongs to the exact current match/opponent.
+  if(cached && Number(cached.match_id)===Number(target.id) &&
+     String(cached.opponent||'')===String(target.opponent||'')){
     return json({
       ok:true,
       cached:true,
       item:{
         ...cached,
+        match_id:Number(cached.match_id),
         last_games:safeParse(cached.last_games_json,[])
       }
     });
+  }
+
+  // Stale/wrong cache row: remove it before recomputing.
+  if(cached){
+    await context.env.DB.prepare(
+      'DELETE FROM opponent_intel WHERE match_id=?'
+    ).bind(matchId).run();
   }
 
   try{

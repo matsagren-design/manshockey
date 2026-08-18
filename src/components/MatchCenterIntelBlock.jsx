@@ -3,5 +3,5 @@ import{MatchIntelligence}from'./MatchIntelligence.jsx';
 
 export function MatchCenterIntelBlock({selectedMatch}){
   if(!selectedMatch?.id)return null;
-  return <MatchIntelligence matchId={selectedMatch.id}/>;
+  return <MatchIntelligence match={selectedMatch}/>;
 }
