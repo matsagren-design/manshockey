@@ -102,21 +102,22 @@ function validBchlGameCenterUrl(value=''){
   }catch{return ''}
 }
 
-function hasSpecificFlo(value=''){ return Boolean(validFloEventUrl(value)); }
-function hasGameCenter(value=''){ return Boolean(validBchlGameCenterUrl(value)); }
+function hasFlo(value=''){ return Boolean(validFloEventUrl(value)); }
+function hasGc(value=''){ return Boolean(validBchlGameCenterUrl(value)); }
 
-function matchTiming(m){
+function timing(m){
   const t=new Date(m.game_date).getTime();
   const now=Date.now();
-  if(!Number.isFinite(t))return {valid:false};
+  if(!Number.isFinite(t)) return {valid:false};
   const hours=(t-now)/36e5;
   return {
     valid:true,
     hours,
-    farFuture:hours>72,
-    nearGame:hours<=72 && hours>=-48,
-    recent:hours<0 && hours>=-240,
-    old:hours<-240
+    days:hours/24,
+    past:hours<0,
+    within48:hours<=48 && hours>=-48,
+    within7d:hours<=168 && hours>=-48,
+    far:hours>168
   };
 }
 
@@ -142,7 +143,7 @@ function bearerOK(request,env){
 async function logStart(db){
   const r=await db.prepare(
     `INSERT INTO sync_runs(source,status,message)
-     VALUES ('BCHL','running','E30.2.6 Ultra Lean Sync start')`
+     VALUES ('BCHL','running','E30.2.7 Adaptive Sync start')`
   ).run();
   return r.meta?.last_row_id||null;
 }
@@ -171,38 +172,49 @@ async function selectTargets(db){
      ORDER BY game_date
   `).bind(SEASON_START,SEASON_END).all()).results||[];
 
-  const scored = all.map(m=>{
-    const timing=matchTiming(m);
-    const flo=hasSpecificFlo(m.tv_link);
-    const gc=hasGameCenter(m.game_center_url);
-    const completeLinks=flo && gc;
+  const scored=[];
 
-    if(!timing.valid)return {...m,_skip:true,_reason:'invalid-date'};
+  for(const m of all){
+    const t=timing(m);
+    if(!t.valid) continue;
 
-    // Near/current/recent games are always worth checking for status/result.
-    if(timing.nearGame)return {...m,_skip:false,_priority:0,_timing:timing,_hasFlo:flo,_hasGc:gc};
-    if(timing.recent && String(m.game_status||'')!=='Slut')
-      return {...m,_skip:false,_priority:1,_timing:timing,_hasFlo:flo,_hasGc:gc};
+    const flo=hasFlo(m.tv_link);
+    const gc=hasGc(m.game_center_url);
+    const complete=flo&&gc;
+    const final=String(m.game_status||'')==='Slut';
 
-    // Far-future complete link set: skip until near match day.
-    if(timing.farFuture && completeLinks)
-      return {...m,_skip:true,_reason:'complete-far-future'};
+    // Completed older matches: no need.
+    if(t.hours < -240 && final) continue;
 
-    // Upcoming incomplete links: enrich.
-    if(timing.hours>=0 && !completeLinks)
-      return {...m,_skip:false,_priority:2,_timing:timing,_hasFlo:flo,_hasGc:gc};
+    let priority=99;
+    let mode='none';
 
-    // Old finals: skip.
-    if(timing.old && String(m.game_status||'')==='Slut')
-      return {...m,_skip:true,_reason:'old-final'};
+    if(t.within48){
+      // Closest to game time: status/result first, links second.
+      priority=0;
+      mode='status';
+    }else if(t.within7d){
+      priority=1;
+      mode=complete ? 'status-lite' : 'links';
+    }else if(t.far){
+      // >7 days away:
+      // if either specific link already exists, don't spend calls now.
+      if(flo || gc) continue;
 
-    return {...m,_skip:false,_priority:3,_timing:timing,_hasFlo:flo,_hasGc:gc};
-  });
+      // No specific links at all: one lightweight lookup is allowed.
+      priority=2;
+      mode='discovery';
+    }else if(t.past && !final){
+      priority=0;
+      mode='status';
+    }
+
+    scored.push({...m,_priority:priority,_mode:mode,_timing:t,_flo:flo,_gc:gc});
+  }
 
   return scored
-    .filter(m=>!m._skip)
     .sort((a,b)=>a._priority-b._priority || new Date(a.game_date)-new Date(b.game_date))
-    .slice(0,3); // Leaner: max 3 targets/run
+    .slice(0,3);
 }
 
 class RateLimitError extends Error{
@@ -234,9 +246,11 @@ async function firecrawlSearch(env,query,domains){
   });
 
   const data=await r.json().catch(()=>null);
+
   if(r.status===429){
-    throw new RateLimitError('Firecrawl rate limit 429',r.headers.get('retry-after')||'');
+    throw new RateLimitError('Firecrawl 429',r.headers.get('retry-after')||'');
   }
+
   if(!r.ok || !data?.success){
     throw new Error(`Firecrawl search ${r.status}: ${data?.error||'okänt fel'}`);
   }
@@ -248,7 +262,7 @@ async function firecrawlSearch(env,query,domains){
   })).filter(x=>x.url);
 }
 
-function candidateRank(x,target){
+function rank(x,target){
   const u=x.url.toLowerCase();
   const text=`${x.title} ${x.description}`.toLowerCase();
   const opp=String(target.opponent||'').toLowerCase();
@@ -260,48 +274,56 @@ function candidateRank(x,target){
   return score;
 }
 
-function dedupeResults(items){
+function dedupe(items){
   const out=[],seen=new Set();
   for(const x of items){
-    if(!x.url || seen.has(x.url))continue;
+    if(!x.url||seen.has(x.url))continue;
     seen.add(x.url); out.push(x);
   }
   return out;
 }
 
 /*
- Ultra-lean search:
- - one primary query for exactly what is missing
- - optional one fallback query ONLY when primary yielded no candidates
- - if both links missing, one BCHL primary + one Flo primary
- - near game with complete links: BCHL status query only
+ Adaptive search plan:
+ far/discovery: 1 search total, BCHL first
+ within7d/links:
+   - missing GC -> 1 BCHL search
+   - missing Flo -> 1 Flo search
+ within48/status:
+   - 1 BCHL search always
+   - Flo search only if missing Flo
+ fallback only if first search for that domain returned 0
 */
-async function ultraLeanSearch(env,target){
+async function adaptiveSearch(env,target){
   const longDate=humanDate(target.game_date);
   const isoDate=albertaDateKey(target.game_date);
   const opp=target.opponent;
-  const needGc=!hasGameCenter(target.game_center_url);
-  const needFlo=!hasSpecificFlo(target.tv_link);
-  const needStatus=target._timing?.nearGame || target._timing?.recent;
-
   const plans=[];
 
-  if(needGc || needStatus){
+  if(target._mode==='discovery'){
     plans.push({
       kind:'bchl',
       domains:['bchl.ca'],
       primary:`"Brooks Bandits" "${opp}" "${longDate}"`,
-      fallback:`"Brooks Bandits" "${opp}" "${isoDate}"`
+      fallback:null
     });
-  }
-
-  if(needFlo){
-    plans.push({
-      kind:'flo',
-      domains:['flohockey.tv'],
-      primary:`"Brooks Bandits" "${opp}" "${longDate}"`,
-      fallback:`"Brooks Bandits" "${opp}" "${isoDate}"`
-    });
+  }else{
+    if(target._mode==='status' || target._mode==='status-lite' || !target._gc){
+      plans.push({
+        kind:'bchl',
+        domains:['bchl.ca'],
+        primary:`"Brooks Bandits" "${opp}" "${longDate}"`,
+        fallback:`"Brooks Bandits" "${opp}" "${isoDate}"`
+      });
+    }
+    if(!target._flo && target._mode!=='status-lite'){
+      plans.push({
+        kind:'flo',
+        domains:['flohockey.tv'],
+        primary:`"Brooks Bandits" "${opp}" "${longDate}"`,
+        fallback:`"Brooks Bandits" "${opp}" "${isoDate}"`
+      });
+    }
   }
 
   const all=[];
@@ -315,7 +337,7 @@ async function ultraLeanSearch(env,target){
       searches++;
       trace.push({kind:plan.kind,phase:'primary',count:r.length});
 
-      if(r.length===0){
+      if(r.length===0 && plan.fallback){
         r=await firecrawlSearch(env,plan.fallback,plan.domains);
         searches++;
         trace.push({kind:plan.kind,phase:'fallback',count:r.length});
@@ -333,12 +355,8 @@ async function ultraLeanSearch(env,target){
   }
 
   return {
-    results:dedupeResults(all)
-      .sort((a,b)=>candidateRank(b,target)-candidateRank(a,target))
-      .slice(0,6),
-    searches,
-    rateLimited,
-    trace
+    results:dedupe(all).sort((a,b)=>rank(b,target)-rank(a,target)).slice(0,6),
+    searches,rateLimited,trace
   };
 }
 
@@ -360,18 +378,18 @@ async function scrapeCandidate(env,url,target){
   };
 
   const dateKey=albertaDateKey(target.game_date);
-  const prompt=`
-Target hockey game:
-- Brooks Bandits
-- opponent: ${target.opponent}
-- Alberta date: ${dateKey}
-- Brooks is ${String(target.home_away).toLowerCase()==='hemma'?'HOME':'AWAY'}
 
-Set is_target_game=true ONLY if this page clearly describes this exact game.
-Return date YYYY-MM-DD, away_team, home_team, score if visible, status,
-official BCHL Game Center URL if visible,
+  const prompt=`
+Exact target game:
+Brooks Bandits vs ${target.opponent}
+Date in Alberta: ${dateKey}
+Brooks is ${String(target.home_away).toLowerCase()==='hemma'?'HOME':'AWAY'}
+
+is_target_game=true only when this exact game is clearly shown.
+Return date, away_team, home_team, score if visible, status,
+BCHL Game Center URL if visible,
 and DIRECT FloHockey event URL if visible.
-Never invent or infer a different date/match.
+Do not invent data.
 `;
 
   const r=await fetch(FIRECRAWL_SCRAPE_URL,{
@@ -392,18 +410,20 @@ Never invent or infer a different date/match.
   });
 
   const data=await r.json().catch(()=>null);
-  if(r.status===429) throw new RateLimitError('Firecrawl scrape rate limit 429',r.headers.get('retry-after')||'');
+
+  if(r.status===429) throw new RateLimitError('Firecrawl scrape 429',r.headers.get('retry-after')||'');
   if(!r.ok || !data?.success)return null;
 
   const j=data?.data?.json||data?.json||null;
   return j && typeof j==='object' ? j : null;
 }
 
-function verifyExtract(target,j){
-  if(!j?.is_target_game)return {ok:false,reason:'extract-says-not-target'};
+function verify(target,j){
+  if(!j?.is_target_game)return {ok:false,reason:'not-target'};
+
   const targetDate=albertaDateKey(target.game_date);
   const extractedDate=normalizeExtractedDate(j.date);
-  if(!targetDate || extractedDate!==targetDate)return {ok:false,reason:'date-mismatch'};
+  if(!targetDate || extractedDate!==targetDate)return {ok:false,reason:'date'};
 
   const brooksHome=String(target.home_away||'').toLowerCase()==='hemma';
   const away=canonTeam(j.away_team);
@@ -411,15 +431,16 @@ function verifyExtract(target,j){
   const opp=canonTeam(target.opponent);
 
   if(brooksHome){
-    if(!isBrooks(j.home_team) || away!==opp)return {ok:false,reason:'teams-mismatch'};
+    if(!isBrooks(j.home_team)||away!==opp)return {ok:false,reason:'teams'};
   }else{
-    if(!isBrooks(j.away_team) || home!==opp)return {ok:false,reason:'teams-mismatch'};
+    if(!isBrooks(j.away_team)||home!==opp)return {ok:false,reason:'teams'};
   }
+
   return {ok:true,brooksHome};
 }
 
-async function enrichTarget(db,target,j,brooksHome,candidateUrl){
-  const changed=[],rejectedLinks=[];
+async function enrich(db,target,j,brooksHome,candidateUrl){
+  const changed=[];
 
   const gc=
     validBchlGameCenterUrl(j.game_center_url) ||
@@ -435,10 +456,6 @@ async function enrichTarget(db,target,j,brooksHome,candidateUrl){
   const rawWatch=safeUrl(j.watch_url) || safeUrl(candidateUrl);
   const flo=validFloEventUrl(rawWatch);
 
-  if(rawWatch && !flo && /flohockey\.tv/i.test(rawWatch)){
-    rejectedLinks.push({field:'tv_link',value:rawWatch,reason:'not-specific-flohockey-event'});
-  }
-
   if(flo && flo!==String(target.tv_link||'')){
     await db.prepare(
       'UPDATE matches SET tv_link=?, updated_at=CURRENT_TIMESTAMP WHERE id=?'
@@ -450,7 +467,7 @@ async function enrichTarget(db,target,j,brooksHome,candidateUrl){
   const awayScore=parseScore(j.away_score);
   const homeScore=parseScore(j.home_score);
 
-  if((status==='Uppskjuten' || status==='Inställd') &&
+  if((status==='Uppskjuten'||status==='Inställd') &&
      status!==String(target.game_status||'')){
     await db.prepare(
       'UPDATE matches SET game_status=?, updated_at=CURRENT_TIMESTAMP WHERE id=?'
@@ -484,14 +501,7 @@ async function enrichTarget(db,target,j,brooksHome,candidateUrl){
     }
   }
 
-  return {
-    changed:[...new Set(changed)],
-    rejectedLinks,
-    validated:{
-      game_center_url:gc||'',
-      tv_link:flo||''
-    }
-  };
+  return [...new Set(changed)];
 }
 
 async function runSync(context){
@@ -502,12 +512,11 @@ async function runSync(context){
     const targets=await selectTargets(db);
 
     if(targets.length===0){
-      const msg='E30.2.6: inga matcher behöver kontroll just nu.';
+      const msg='E30.2.7: inga matcher behöver kontroll just nu.';
       await logFinish(db,runId,'success',0,0,0,msg);
       return json({
-        ok:true,version:'E30.2.6',targets:0,
-        searches:0,games_matched:0,games_updated:0,
-        rate_limited:false,message:msg
+        ok:true,version:'E30.2.7',targets:0,searches:0,
+        games_matched:0,games_updated:0,rate_limited:false,message:msg
       });
     }
 
@@ -520,41 +529,39 @@ async function runSync(context){
         id:target.id,
         opponent:target.opponent,
         date:albertaDateKey(target.game_date),
+        mode:target._mode,
         matched:false,
         changed:[],
-        rejected_links:[],
         notes:[]
       };
 
       try{
-        const lean=await ultraLeanSearch(context.env,target);
-        searches+=lean.searches;
-        item.searches_used=lean.searches;
-        item.search_trace=lean.trace;
-        item.search_results=lean.results.length;
+        const result=await adaptiveSearch(context.env,target);
+        searches+=result.searches;
+        item.searches_used=result.searches;
+        item.search_trace=result.trace;
+        item.search_results=result.results.length;
 
-        if(lean.rateLimited){
+        if(result.rateLimited){
           rateLimited=true;
-          item.notes.push('Firecrawl 429: mjukt stopp för denna match.');
+          item.notes.push('429 mjukt stopp');
         }
 
         let found=null;
-        for(const candidate of lean.results.slice(0,3)){
+        for(const candidate of result.results.slice(0,3)){
           try{
             const extracted=await scrapeCandidate(context.env,candidate.url,target);
             if(!extracted)continue;
 
-            const verified=verifyExtract(target,extracted);
+            const verified=verify(target,extracted);
             if(verified.ok){
               found={candidate,extracted,verified};
               break;
             }
-
-            item.notes.push(`${candidate.url}: ${verified.reason}`);
           }catch(err){
             if(err instanceof RateLimitError){
               rateLimited=true;
-              item.notes.push('Firecrawl 429 under scrape: mjukt stopp.');
+              item.notes.push('429 scrape mjukt stopp');
               break;
             }
             throw err;
@@ -562,7 +569,7 @@ async function runSync(context){
         }
 
         if(!found){
-          if(!lean.rateLimited)item.notes.push('Ingen högsäker träff.');
+          item.notes.push('Ingen högsäker träff');
           details.push(item);
           continue;
         }
@@ -570,20 +577,17 @@ async function runSync(context){
         matched++;
         item.matched=true;
 
-        const enrichment=await enrichTarget(
+        const changed=await enrich(
           db,target,found.extracted,found.verified.brooksHome,found.candidate.url
         );
 
-        item.changed=enrichment.changed;
-        item.rejected_links=enrichment.rejectedLinks;
-        item.game_center_url=enrichment.validated.game_center_url;
-        item.tv_link=enrichment.validated.tv_link;
+        item.changed=changed;
+        if(changed.length>0)updated++;
 
-        if(enrichment.changed.length>0)updated++;
       }catch(err){
         if(err instanceof RateLimitError){
           rateLimited=true;
-          item.notes.push('Firecrawl 429: mjukt stopp.');
+          item.notes.push('429 mjukt stopp');
         }else{
           item.notes.push(String(err));
         }
@@ -593,14 +597,14 @@ async function runSync(context){
     }
 
     const status=rateLimited?'success_rate_limited':'success';
-    const msg=`E30.2.6: ${targets.length} matcher kontrollerade, ${matched} säkert matchade, ${updated} förbättrade, ${searches} sökningar${rateLimited?', rate-limit hanterad':''}.`;
+    const msg=`E30.2.7: ${targets.length} matcher kontrollerade, ${matched} säkert matchade, ${updated} förbättrade, ${searches} sökningar${rateLimited?', rate-limit hanterad':''}.`;
 
     await logFinish(db,runId,status,targets.length,matched,updated,msg);
 
     return json({
       ok:true,
-      version:'E30.2.6',
-      strategy:'ultra lean smart sync',
+      version:'E30.2.7',
+      strategy:'adaptive sync',
       targets:targets.length,
       searches,
       games_matched:matched,
@@ -613,7 +617,7 @@ async function runSync(context){
   }catch(err){
     const msg=String(err);
     await logFinish(db,runId,'error',0,0,0,msg);
-    return json({ok:false,version:'E30.2.6',error:msg},500);
+    return json({ok:false,version:'E30.2.7',error:msg},500);
   }
 }
 
@@ -628,16 +632,15 @@ export async function onRequestGet(context){
 
   return json({
     ok:true,
-    version:'E30.2.6',
-    strategy:'ultra lean smart sync',
+    version:'E30.2.7',
+    strategy:'adaptive sync',
     current_targets:targets.map(m=>({
       id:m.id,
       opponent:m.opponent,
       game_date:m.game_date,
-      home_away:m.home_away,
-      game_status:m.game_status,
-      has_flohockey_event:hasSpecificFlo(m.tv_link),
-      has_game_center:hasGameCenter(m.game_center_url),
+      mode:m._mode,
+      has_flohockey_event:hasFlo(m.tv_link),
+      has_game_center:hasGc(m.game_center_url),
       timing:m._timing
     })),
     runs:latest
@@ -647,7 +650,9 @@ export async function onRequestGet(context){
 export async function onRequestPost(context){
   const authorized=bearerOK(context.request,context.env) ||
                    await adminSessionOK(context.request,context.env);
+
   if(!authorized)return json({ok:false,error:'Unauthorized'},401);
   if(!context.env.DB)return json({ok:false,error:'D1 saknas'},500);
+
   return runSync(context);
 }
