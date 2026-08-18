@@ -1,241 +1,26 @@
-function json(data,status=200){
-  return new Response(JSON.stringify(data),{
-    status,
-    headers:{'content-type':'application/json; charset=utf-8'}
-  });
+function json(data,status=200){return new Response(JSON.stringify(data),{status,headers:{"content-type":"application/json; charset=utf-8"}})}
+function getCookie(request,name){const c=request.headers.get("Cookie")||"";for(const p of c.split(";").map(x=>x.trim())){const[k,...v]=p.split("=");if(k===name)return decodeURIComponent(v.join("="))}return null}
+async function requireUser(context){const sid=getCookie(context.request,"mh_session");if(!sid||!context.env.DB)return null;return await context.env.DB.prepare('SELECT users.id,users.email,users.role FROM sessions JOIN users ON users.id=sessions.user_id WHERE sessions.id=? AND sessions.expires_at > datetime("now") LIMIT 1').bind(sid).first()}
+function safeParse(s,fallback=[]){try{return JSON.parse(s)}catch{return fallback}}
+function resultParts(s=""){const m=String(s).match(/(\\d+)\\s*[-:]\\s*(\\d+)/);return m?{for:Number(m[1]),against:Number(m[2])}:null}
+function summarize(rows){
+ const games=[];let wins=0,losses=0,gf=0,ga=0,hw=0,hl=0,aw=0,al=0;
+ for(const r of rows){const p=resultParts(r.result);if(!p)continue;const f=p.against,a=p.for,w=f>a,venue=String(r.home_away||"").toLowerCase()==="hemma"?"Away":"Home";wins+=w?1:0;losses+=w?0:1;gf+=f;ga+=a;if(venue==="Home"){hw+=w?1:0;hl+=w?0:1}else{aw+=w?1:0;al+=w?0:1}games.push({date:r.game_date,result:`${f}-${a}`,outcome:w?"W":"L",venue,gf:f,ga:a})}
+ return{games,wins,losses,gf,ga,diff:gf-ga,home:{wins:hw,losses:hl},away:{wins:aw,losses:al},avg_for:games.length?Number((gf/games.length).toFixed(2)):0,avg_against:games.length?Number((ga/games.length).toFixed(2)):0}
 }
-
-function getCookie(request,name){
-  const c=request.headers.get('Cookie')||'';
-  for(const p of c.split(';').map(x=>x.trim())){
-    const[k,...v]=p.split('=');
-    if(k===name)return decodeURIComponent(v.join('='));
-  }
-  return null;
+function advanced(target,f){
+ const n=f.games.length,keys=[],mans=[];
+ if(!n){keys.push("Spela strukturerat tills en tydlig motståndartrend kan verifieras.");mans.push("Prioritera position, kommunikation och enkla förstapass.")}
+ else{keys.push(f.avg_for>=3?`Begränsa ${target.opponent} tidigt – verifierat målsnitt ${f.avg_for}.`:"Sätt press tidigt och tvinga fram långa anfall för Brooks.");keys.push(f.avg_against>=3?`Attackera målområdet – ${f.avg_against} insläppta mål/match i underlaget.`:"Skapa trafik och andrachanser mot ett hittills relativt tätt försvar.");keys.push(f.diff>=0?"Undvik gratisomställningar och vinn detaljerna.":"Tryck på direkt efter puckvinst – verifierad målskillnad är negativ.");mans.push("Äg insidan framför eget mål och vinn första kroppskontakten.");mans.push(f.avg_for>=3?"Var extra vaksam på spelvändningar och andra vågen.":"Håll låg risk i första passet och flytta spelet snabbt ur egen zon.");mans.push("Prioritera box-out, klubba på klubba och tydlig kommunikation.")}
+ return{form5:f.games.slice(0,5).map(g=>g.outcome).join("–")||"–",record:`${f.wins}-${f.losses}`,gf:f.gf,ga:f.ga,diff:f.diff,avg_for:f.avg_for,avg_against:f.avg_against,home_record:`${f.home.wins}-${f.home.losses}`,away_record:`${f.away.wins}-${f.away.losses}`,head_to_head_games:n,keys_to_game:keys.slice(0,3),mans_focus:mans.slice(0,3),special_teams:{available:false,note:"Verifierad PP/PK-data finns ännu inte i D1."}}
 }
-
-async function requireUser(context){
-  const sid=getCookie(context.request,'mh_session');
-  if(!sid||!context.env.DB)return null;
-  return await context.env.DB.prepare(
-    'SELECT users.id,users.email,users.role FROM sessions JOIN users ON users.id=sessions.user_id WHERE sessions.id=? AND sessions.expires_at > datetime("now") LIMIT 1'
-  ).bind(sid).first();
+async function ai(env,target,f,a){if(!env.OPENAI_API_KEY)return null;const prompt=`Skriv en kort svensk pre-game-analys inför Brooks Bandits mot ${target.opponent}. Använd ENDAST verifierad data. Hitta inte på statistik, special teams, spelare eller skador. Data: ${JSON.stringify(f)} Härledda nycklar: ${JSON.stringify(a)}. Om underlaget är tunt, säg det. Max 120 ord.`;const r=await fetch("https://api.openai.com/v1/chat/completions",{method:"POST",headers:{Authorization:`Bearer ${env.OPENAI_API_KEY}`,"Content-Type":"application/json"},body:JSON.stringify({model:"gpt-4.1-mini",messages:[{role:"user",content:prompt}],temperature:.2,max_tokens:220})});if(!r.ok)return null;const d=await r.json().catch(()=>null);return d?.choices?.[0]?.message?.content?.trim()||null}
+async function compute(context,id){
+ const db=context.env.DB,target=await db.prepare("SELECT id,opponent,game_date,home_away FROM matches WHERE id=? LIMIT 1").bind(id).first();if(!target)throw new Error("Match hittades inte");
+ const rows=(await db.prepare("SELECT id,game_date,home_away,result FROM matches WHERE opponent=? AND id<>? AND result IS NOT NULL AND trim(result)<>'' ORDER BY game_date DESC LIMIT 5").bind(target.opponent,target.id).all()).results||[],f=summarize(rows),a=advanced(target,f);
+ const summary=f.games.length?`${target.opponent} har ${f.wins}-${f.losses} i verifierade inbördes matcher. Målsnitt ${f.avg_for} framåt och ${f.avg_against} bakåt.`:`Ingen verifierad resultatserie finns ännu för ${target.opponent} i MansHockey-datan.`,ais=await ai(context.env,target,f,a),home=f.games.length?`Hemma ${a.home_record}, borta ${a.away_record} i verifierat underlag.`:"Ingen verifierad hemma/borta-serie ännu.",score=f.games.length?`${f.avg_for} mål framåt / ${f.avg_against} bakåt. Målskillnad ${f.diff>=0?"+":""}${f.diff}.`:"Måltrend saknas ännu.",confidence=Math.min(1,f.games.length/5);
+ await db.prepare("INSERT INTO opponent_intel(match_id,opponent,generated_at,source,form_summary,last_games_json,home_away_summary,scoring_summary,ai_summary,confidence,advanced_json) VALUES(?,?,CURRENT_TIMESTAMP,'D1',?,?,?,?,?,?,?) ON CONFLICT(match_id) DO UPDATE SET opponent=excluded.opponent,generated_at=CURRENT_TIMESTAMP,form_summary=excluded.form_summary,last_games_json=excluded.last_games_json,home_away_summary=excluded.home_away_summary,scoring_summary=excluded.scoring_summary,ai_summary=excluded.ai_summary,confidence=excluded.confidence,advanced_json=excluded.advanced_json").bind(target.id,target.opponent,summary,JSON.stringify(f.games),home,score,ais||summary,confidence,JSON.stringify(a)).run();
+ return{match_id:Number(target.id),opponent:target.opponent,form_summary:summary,last_games:f.games,home_away_summary:home,scoring_summary:score,ai_summary:ais||summary,confidence,advanced:a}
 }
-
-function safeParse(s,fallback=[]){
-  try{return JSON.parse(s)}catch{return fallback}
-}
-
-function resultParts(result=''){
-  const m=String(result).match(/(\d+)\s*[-:]\s*(\d+)/);
-  return m ? {for:Number(m[1]),against:Number(m[2])} : null;
-}
-
-function summarizeForm(rows){
-  const games=[];
-  let wins=0,losses=0,gf=0,ga=0;
-
-  for(const r of rows){
-    const p=resultParts(r.result);
-    if(!p)continue;
-
-    // result is stored Brooks-opponent. Reverse to opponent perspective.
-    const oppFor=p.against;
-    const oppAgainst=p.for;
-    const win=oppFor>oppAgainst;
-
-    if(win)wins++; else losses++;
-    gf+=oppFor; ga+=oppAgainst;
-
-    games.push({
-      date:r.game_date,
-      opponent:'Brooks Bandits',
-      result:`${oppFor}-${oppAgainst}`,
-      outcome:win?'W':'L',
-      venue:String(r.home_away||'').toLowerCase()==='hemma'?'Away':'Home'
-    });
-  }
-
-  return {
-    games,wins,losses,gf,ga,
-    avg_for:games.length?Number((gf/games.length).toFixed(2)):0,
-    avg_against:games.length?Number((ga/games.length).toFixed(2)):0
-  };
-}
-
-function buildNarrative(target,form){
-  if(!form.games.length){
-    return `Ingen verifierad resultatserie finns ännu för ${target.opponent} i MansHockey-datan.`;
-  }
-
-  const trend=form.wins>form.losses?'positiv':form.wins<form.losses?'svag':'jämn';
-
-  return `${target.opponent} har ${form.wins}-${form.losses} i de verifierade matcher som finns i D1. Formtrenden är ${trend}. Laget gör i snitt ${form.avg_for} mål och släpper in ${form.avg_against}.`;
-}
-
-async function generateAI(env,target,form){
-  if(!env.OPENAI_API_KEY)return null;
-
-  const prompt=`Du är hockeyanalytiker.
-Skriv en kort svensk pre-game-analys inför Brooks Bandits mot ${target.opponent}.
-Använd endast följande verifierade data och hitta inte på något:
-${JSON.stringify(form)}
-Om underlaget saknar verifierade matcher ska du uttryckligen säga att analysunderlaget är begränsat.
-Max 120 ord.`;
-
-  const r=await fetch('https://api.openai.com/v1/chat/completions',{
-    method:'POST',
-    headers:{
-      'Authorization':`Bearer ${env.OPENAI_API_KEY}`,
-      'Content-Type':'application/json'
-    },
-    body:JSON.stringify({
-      model:'gpt-4.1-mini',
-      messages:[{role:'user',content:prompt}],
-      temperature:0.2,
-      max_tokens:220
-    })
-  });
-
-  if(!r.ok)return null;
-  const d=await r.json().catch(()=>null);
-  return d?.choices?.[0]?.message?.content?.trim()||null;
-}
-
-async function compute(context,matchId){
-  const db=context.env.DB;
-
-  const target=await db.prepare(
-    'SELECT id,opponent,game_date,home_away FROM matches WHERE id=? LIMIT 1'
-  ).bind(matchId).first();
-
-  if(!target)throw new Error('Match hittades inte');
-
-  const rows=(await db.prepare(`
-    SELECT id,opponent,game_date,home_away,result,game_status
-      FROM matches
-     WHERE opponent=?
-       AND id<>?
-       AND result IS NOT NULL
-       AND trim(result)<>''
-     ORDER BY game_date DESC
-     LIMIT 5
-  `).bind(target.opponent,target.id).all()).results||[];
-
-  const form=summarizeForm(rows);
-  const baseSummary=buildNarrative(target,form);
-  const ai=await generateAI(context.env,target,form);
-
-  const homeGames=form.games.filter(g=>g.venue==='Home');
-  const awayGames=form.games.filter(g=>g.venue==='Away');
-
-  const homeAwaySummary=form.games.length
-    ? `Hemma ${homeGames.length} verifierade matcher, borta ${awayGames.length}.`
-    : 'Ingen verifierad hemma/borta-serie ännu.';
-
-  const scoringSummary=form.games.length
-    ? `${form.avg_for} mål framåt / ${form.avg_against} bakåt i snitt.`
-    : 'Måltrend saknas ännu.';
-
-  const confidence=Math.min(1,form.games.length/5);
-
-  await db.prepare(`
-    INSERT INTO opponent_intel(
-      match_id,opponent,generated_at,source,
-      form_summary,last_games_json,home_away_summary,
-      scoring_summary,ai_summary,confidence
-    )
-    VALUES(?,?,CURRENT_TIMESTAMP,'D1',?,?,?,?,?,?)
-    ON CONFLICT(match_id) DO UPDATE SET
-      opponent=excluded.opponent,
-      generated_at=CURRENT_TIMESTAMP,
-      source='D1',
-      form_summary=excluded.form_summary,
-      last_games_json=excluded.last_games_json,
-      home_away_summary=excluded.home_away_summary,
-      scoring_summary=excluded.scoring_summary,
-      ai_summary=excluded.ai_summary,
-      confidence=excluded.confidence
-  `).bind(
-    target.id,target.opponent,baseSummary,
-    JSON.stringify(form.games),
-    homeAwaySummary,
-    scoringSummary,
-    ai||baseSummary,
-    confidence
-  ).run();
-
-  return {
-    match_id:Number(target.id),
-    opponent:target.opponent,
-    form_summary:baseSummary,
-    last_games:form.games,
-    home_away_summary:homeAwaySummary,
-    scoring_summary:scoringSummary,
-    ai_summary:ai||baseSummary,
-    confidence
-  };
-}
-
-export async function onRequestGet(context){
-  if(!context.env.DB)return json({ok:false,error:'D1 saknas'},500);
-
-  const url=new URL(context.request.url);
-  const matchId=Number(url.searchParams.get('match_id')||0);
-  if(!matchId)return json({ok:false,error:'match_id krävs'},400);
-
-  const target=await context.env.DB.prepare(
-    'SELECT id,opponent FROM matches WHERE id=? LIMIT 1'
-  ).bind(matchId).first();
-
-  if(!target)return json({ok:false,error:'Match hittades inte'},404);
-
-  const cached=await context.env.DB.prepare(
-    'SELECT * FROM opponent_intel WHERE match_id=? LIMIT 1'
-  ).bind(matchId).first();
-
-  // Critical binding guard:
-  // cache is valid only if it still belongs to the exact current match/opponent.
-  if(cached && Number(cached.match_id)===Number(target.id) &&
-     String(cached.opponent||'')===String(target.opponent||'')){
-    return json({
-      ok:true,
-      cached:true,
-      item:{
-        ...cached,
-        match_id:Number(cached.match_id),
-        last_games:safeParse(cached.last_games_json,[])
-      }
-    });
-  }
-
-  // Stale/wrong cache row: remove it before recomputing.
-  if(cached){
-    await context.env.DB.prepare(
-      'DELETE FROM opponent_intel WHERE match_id=?'
-    ).bind(matchId).run();
-  }
-
-  try{
-    const item=await compute(context,matchId);
-    return json({ok:true,cached:false,item});
-  }catch(err){
-    return json({ok:false,error:String(err)},500);
-  }
-}
-
-export async function onRequestPost(context){
-  const user=await requireUser(context);
-  if(!user)return json({ok:false,error:'Unauthorized'},401);
-
-  try{
-    const body=await context.request.json();
-    const matchId=Number(body?.match_id||0);
-    if(!matchId)return json({ok:false,error:'match_id krävs'},400);
-
-    const item=await compute(context,matchId);
-    return json({ok:true,item});
-  }catch(err){
-    return json({ok:false,error:String(err)},500);
-  }
-}
+export async function onRequestGet(context){if(!context.env.DB)return json({ok:false,error:"D1 saknas"},500);const u=new URL(context.request.url),id=Number(u.searchParams.get("match_id")||0);if(!id)return json({ok:false,error:"match_id krävs"},400);const target=await context.env.DB.prepare("SELECT id,opponent FROM matches WHERE id=?").bind(id).first();if(!target)return json({ok:false,error:"Match hittades inte"},404);const c=await context.env.DB.prepare("SELECT * FROM opponent_intel WHERE match_id=?").bind(id).first();if(c&&Number(c.match_id)===Number(target.id)&&String(c.opponent||"")===String(target.opponent||"")&&c.advanced_json)return json({ok:true,cached:true,item:{...c,match_id:Number(c.match_id),last_games:safeParse(c.last_games_json,[]),advanced:safeParse(c.advanced_json,{})}});if(c)await context.env.DB.prepare("DELETE FROM opponent_intel WHERE match_id=?").bind(id).run();try{return json({ok:true,cached:false,item:await compute(context,id)})}catch(e){return json({ok:false,error:String(e)},500)}}
+export async function onRequestPost(context){const user=await requireUser(context);if(!user)return json({ok:false,error:"Unauthorized"},401);try{const b=await context.request.json(),id=Number(b?.match_id||0);if(!id)return json({ok:false,error:"match_id krävs"},400);return json({ok:true,item:await compute(context,id)})}catch(e){return json({ok:false,error:String(e)},500)}}

@@ -3,6 +3,7 @@ import{Bot,CalendarDays,ExternalLink,FileText,MapPin,Newspaper,Plane,Target,Trop
 import{Page}from'../components/Layout.jsx';
 import{MatchCenterIntelBlock}from'../components/MatchCenterIntelBlock.jsx';
 import'../components/match-intelligence.css';
+import'../components/e30-4-intelligence.css';
 import{formatDate,isSameMatch}from'../lib/api.js';
 
 function Section({title,icon,children}){
