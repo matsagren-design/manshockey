@@ -20,28 +20,27 @@ const TEAM_CODES={
   "Brooks Bandits":"BRK"
 };
 
+const HT_FILES=[
+  'https://lscluster.hockeytech.com/statview-1.4.1/js/client/bchl/base.r2.js',
+  'https://lscluster.hockeytech.com/statview-1.4.1/js/ht-services.r2.js',
+  'https://lscluster.hockeytech.com/statview-1.4.1/js/ht-routes.r2.js',
+  'https://lscluster.hockeytech.com/statview-1.4.1/js/ht-controller.r2.js',
+  'https://lscluster.hockeytech.com/statview-1.4.1/js/ht-libraries.r2.js'
+];
+
 function cleanSpace(s){
   return String(s||'').replace(/\s+/g,' ').trim();
 }
 
-function titleFromHtml(raw){
-  const m=String(raw||'').match(/<title[^>]*>([\s\S]*?)<\/title>/i);
-  return m ? cleanSpace(m[1].replace(/<[^>]+>/g,' ')) : '';
-}
-
-function isoDate(d){
-  return d.toISOString().slice(0,10);
-}
-
-async function fetchOfficial(url){
+async function fetchText(url,timeout=10000){
   const ctl=new AbortController();
-  const timer=setTimeout(()=>ctl.abort(),8000);
+  const timer=setTimeout(()=>ctl.abort(),timeout);
 
   try{
     const r=await fetch(url,{
       headers:{
-        'user-agent':'Mozilla/5.0 MansHockey/30.5.6',
-        'accept':'text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8'
+        'user-agent':'Mozilla/5.0 MansHockey/30.5.7',
+        'accept':'application/javascript,text/javascript,*/*'
       },
       signal:ctl.signal
     });
@@ -52,9 +51,7 @@ async function fetchOfficial(url){
       ok:r.ok,
       status:r.status,
       body,
-      content_type:r.headers.get('content-type')||'',
-      server:r.headers.get('server')||'',
-      cf_cache_status:r.headers.get('cf-cache-status')||''
+      content_type:r.headers.get('content-type')||''
     };
   }catch(err){
     return {
@@ -99,233 +96,171 @@ async function targets(db){
   return out;
 }
 
-function candidateDates(ts){
-  const upcoming=new Date(ts);
-
-  const end=new Date(upcoming);
-  end.setUTCDate(end.getUTCDate()-90);
-
-  const start=new Date(end);
-  start.setUTCDate(start.getUTCDate()-84);
-
-  const dates=[];
-
-  for(let d=new Date(end);d>=start;d.setUTCDate(d.getUTCDate()-1)){
-    if([0,3,5,6].includes(d.getUTCDay())){
-      dates.push(new Date(d));
-    }
-  }
-
-  return dates;
-}
-
 function unique(arr){
   return [...new Set(arr.filter(Boolean))];
 }
 
-function absoluteUrl(v,base){
-  try{
-    return new URL(v,base).toString();
-  }catch{
-    return '';
-  }
+function snippet(text,index,radius=300){
+  const s=String(text||'');
+  if(index<0)return '';
+  return cleanSpace(
+    s.slice(Math.max(0,index-radius),Math.min(s.length,index+radius))
+  ).slice(0,800);
 }
 
-function extractScripts(html,base){
-  const external=[];
-  const inline=[];
-
-  const re=/<script\b([^>]*)>([\s\S]*?)<\/script>/gi;
-  let m;
-
-  while((m=re.exec(String(html||'')))!==null){
-    const attrs=m[1]||'';
-    const body=m[2]||'';
-
-    const sm=attrs.match(/\bsrc\s*=\s*["']([^"']+)["']/i);
-
-    if(sm){
-      external.push(absoluteUrl(sm[1],base));
-    }else if(cleanSpace(body)){
-      inline.push(body);
-    }
-  }
-
-  return {
-    external:unique(external),
-    inline
-  };
-}
-
-function extractIframes(html,base){
-  const urls=[];
-  const re=/<iframe\b[^>]*\bsrc\s*=\s*["']([^"']+)["'][^>]*>/gi;
-  let m;
-
-  while((m=re.exec(String(html||'')))!==null){
-    urls.push(absoluteUrl(m[1],base));
-  }
-
-  return unique(urls);
-}
-
-function extractLinks(html,base){
-  const urls=[];
-  const re=/<(?:a|link)\b[^>]*\bhref\s*=\s*["']([^"']+)["'][^>]*>/gi;
-  let m;
-
-  while((m=re.exec(String(html||'')))!==null){
-    urls.push(absoluteUrl(m[1],base));
-  }
-
-  return unique(urls);
-}
-
-function extractUrlLikeStrings(text,base){
+function urlCandidates(text){
   const out=[];
 
-  const abs=/https?:\/\/[^\s"'<>\\)]+/gi;
+  const abs=/https?:\/\/[^\s"'`<>\\)]+/gi;
   for(const m of String(text||'').matchAll(abs)){
     out.push(m[0].replace(/[;,]+$/,''));
   }
 
-  const rel=/(?:["'`])((?:\/|\.\/|\.\.\/)[^"'`\s<>]{3,240})(?:["'`])/g;
-  for(const m of String(text||'').matchAll(rel)){
-    const u=absoluteUrl(m[1],base);
-    if(u)out.push(u);
+  const quoted=/(["'`])((?:\/|\.\/|\.\.\/)[^"'`\s<>]{2,260})\1/g;
+  for(const m of String(text||'').matchAll(quoted)){
+    out.push(m[2]);
   }
 
   return unique(out);
 }
 
-function interestingUrl(u){
+function relevantUrl(u){
   const s=String(u||'').toLowerCase();
 
   return [
-    'api','ajax','xhr','stats','schedule','score','game','league',
-    'scoreboard','daily','json','feed','widget','iframe','endpoint',
-    'game-center','gamecenter','leaguestat','statview','lscluster'
-  ].some(x=>s.includes(x));
+    'feed','api','schedule','score','game','stats',
+    'standings','roster','player','season','team',
+    'league','modulekit','gamecenter','game-center',
+    'lscluster','hockeytech','index.php'
+  ].some(k=>s.includes(k));
 }
 
-function snippet(text,index,radius=260){
-  const s=String(text||'');
-  if(index<0)return '';
-  return cleanSpace(
-    s.slice(Math.max(0,index-radius),Math.min(s.length,index+radius))
-  ).slice(0,650);
+function extractObjectAssignments(text){
+  const hits=[];
+  const re=/([A-Za-z_$][\w$.\[\]'"]{0,120})\s*[:=]\s*(["'`])([^"'`\n]{1,260})\2/g;
+  let m;
+
+  while((m=re.exec(String(text||'')))!==null){
+    const value=m[3];
+    if(!relevantUrl(value) &&
+       !/(schedule|game|score|season|team|league|feed|api|stats)/i.test(m[1])){
+      continue;
+    }
+
+    hits.push({
+      lhs:cleanSpace(m[1]),
+      value:cleanSpace(value),
+      sample:snippet(text,m.index,220)
+    });
+
+    if(hits.length>=80)break;
+  }
+
+  return hits;
 }
 
-function detectJsMarkers(text){
-  const src=String(text||'');
-  const lower=src.toLowerCase();
-
-  const markers=[
-    'fetch(',
-    'xmlhttprequest',
-    '$.ajax',
-    '$.get(',
-    '$.post(',
-    'axios',
-    'admin-ajax.php',
-    'wp-json',
-    '/api/',
-    'daily-schedule',
-    'league schedule',
-    'scoreboard',
-    'game-center',
-    'gamecenter',
-    'stats/',
-    'leaguestat',
-    'statview',
-    'lscluster',
-    'iframe',
-    'src=',
-    'endpoint',
-    'schedule'
+function extractHttpCalls(text){
+  const hits=[];
+  const patterns=[
+    {kind:'http.get',re:/\$http\.get\s*\(([\s\S]{0,500}?)\)/gi},
+    {kind:'http.jsonp',re:/\$http\.jsonp\s*\(([\s\S]{0,500}?)\)/gi},
+    {kind:'http.post',re:/\$http\.post\s*\(([\s\S]{0,500}?)\)/gi},
+    {kind:'ajax',re:/\$\.ajax\s*\(\s*\{([\s\S]{0,700}?)\}\s*\)/gi},
+    {kind:'fetch',re:/fetch\s*\(([\s\S]{0,500}?)\)/gi}
   ];
 
-  const hits=[];
+  for(const p of patterns){
+    let m;
+    while((m=p.re.exec(String(text||'')))!==null){
+      const body=cleanSpace(m[1]);
 
-  for(const marker of markers){
-    let from=0;
-    let count=0;
-
-    while(count<3){
-      const i=lower.indexOf(marker.toLowerCase(),from);
-      if(i<0)break;
+      if(!/(schedule|game|score|season|team|league|feed|api|stats|hockeytech|lscluster)/i.test(body)){
+        continue;
+      }
 
       hits.push({
-        marker,
-        sample:snippet(src,i)
+        kind:p.kind,
+        body:body.slice(0,700),
+        sample:snippet(text,m.index,250)
       });
 
-      from=i+marker.length;
-      count++;
+      if(hits.length>=80)break;
     }
   }
 
   return hits;
 }
 
-function extractInlineCandidates(inlineScripts,base){
-  const results=[];
+function extractRouteLike(text){
+  const hits=[];
+  const re=/[{"'`](\/?[A-Za-z0-9_.?=&%\-\/]{3,240}(?:schedule|game|score|standings|stats|roster|player|season|team)[A-Za-z0-9_.?=&%\-\/]*)[}"'`]/gi;
+  let m;
 
-  inlineScripts.forEach((script,index)=>{
-    const hits=detectJsMarkers(script);
-    const urls=extractUrlLikeStrings(script,base).filter(interestingUrl);
-
-    if(hits.length||urls.length){
-      results.push({
-        index,
-        chars:script.length,
-        hits:hits.slice(0,12),
-        urls:urls.slice(0,20)
-      });
-    }
-  });
-
-  return results.slice(0,12);
-}
-
-function classifyExternalScripts(urls){
-  return urls.map(url=>{
-    let host='';
-    try{host=new URL(url).hostname}catch{}
-
-    return {
-      url,
-      host,
-      interesting:interestingUrl(url)
-    };
-  });
-}
-
-async function inspectScript(url){
-  const response=await fetchOfficial(url);
-
-  if(!response.ok){
-    return {
-      url,
-      status:response.status,
-      content_type:response.content_type,
-      chars:0,
-      hits:[],
-      urls:[]
-    };
+  while((m=re.exec(String(text||'')))!==null){
+    hits.push(m[1]);
+    if(hits.length>=100)break;
   }
 
-  const body=response.body||'';
+  return unique(hits);
+}
+
+function markerHits(text){
+  const markers=[
+    'modulekit',
+    'feed/index.php',
+    'client_code',
+    'league_id',
+    'season_id',
+    'team_id',
+    'game_id',
+    'schedule',
+    'daily-schedule',
+    'game-center',
+    'scoreboard',
+    'standings',
+    'roster',
+    'player-stats',
+    'goalie-stats',
+    'JSON_CALLBACK'
+  ];
+
+  const out=[];
+
+  for(const marker of markers){
+    const lower=String(text||'').toLowerCase();
+    let start=0;
+    let count=0;
+
+    while(count<4){
+      const i=lower.indexOf(marker.toLowerCase(),start);
+      if(i<0)break;
+
+      out.push({
+        marker,
+        sample:snippet(text,i,320)
+      });
+
+      start=i+marker.length;
+      count++;
+    }
+  }
+
+  return out;
+}
+
+function analyzeFile(url,body,status,contentType){
+  const urls=urlCandidates(body).filter(relevantUrl);
 
   return {
     url,
-    status:response.status,
-    content_type:response.content_type,
+    status,
+    content_type:contentType,
     chars:body.length,
-    hits:detectJsMarkers(body).slice(0,18),
-    urls:extractUrlLikeStrings(body,url)
-      .filter(interestingUrl)
-      .slice(0,30)
+    candidate_urls:urls.slice(0,80),
+    route_like:extractRouteLike(body).slice(0,80),
+    http_calls:extractHttpCalls(body).slice(0,60),
+    assignments:extractObjectAssignments(body).slice(0,60),
+    markers:markerHits(body).slice(0,60)
   };
 }
 
@@ -348,131 +283,55 @@ async function mapLimit(items,limit,fn){
   return out;
 }
 
-function likelyScript(url){
-  const s=String(url||'').toLowerCase();
-
-  return s.endsWith('.js') ||
-    s.includes('.js?') ||
-    s.includes('stats') ||
-    s.includes('score') ||
-    s.includes('league');
-}
-
 async function runProbe(env,db){
   const ts=await targets(db);
 
-  if(!ts.length){
-    return {
-      ok:true,
-      version:'E30.5.6',
-      mode:'data source probe',
-      targets:0
-    };
-  }
+  const files=await mapLimit(HT_FILES,3,async url=>{
+    const r=await fetchText(url);
+    return analyzeFile(
+      url,
+      r.body||'',
+      r.status,
+      r.content_type
+    );
+  });
 
-  const dates=candidateDates(ts[0].game_date);
-  const d=dates[Math.floor(dates.length/2)]||dates[0];
-
-  if(!d){
-    return {
-      ok:false,
-      version:'E30.5.6',
-      error:'Inget probe-datum kunde skapas.'
-    };
-  }
-
-  const ds=isoDate(d);
-  const pageUrl=`https://bchl.ca/stats/daily-schedule/${d.getUTCFullYear()}-${d.getUTCMonth()+1}-${d.getUTCDate()}`;
-  const page=await fetchOfficial(pageUrl);
-
-  if(!page.ok){
-    return {
-      ok:false,
-      version:'E30.5.6',
-      error:'Kunde inte hämta BCHL-sidan.',
-      status:page.status,
-      url:pageUrl
-    };
-  }
-
-  const scripts=extractScripts(page.body,pageUrl);
-  const iframes=extractIframes(page.body,pageUrl);
-  const links=extractLinks(page.body,pageUrl);
-
-  const pageUrls=extractUrlLikeStrings(page.body,pageUrl);
-  const interestingPageUrls=unique([
-    ...pageUrls.filter(interestingUrl),
-    ...links.filter(interestingUrl),
-    ...iframes.filter(interestingUrl),
-    ...scripts.external.filter(interestingUrl)
-  ]).slice(0,80);
-
-  const externalMeta=classifyExternalScripts(scripts.external);
-
-  // Inspect only a bounded set of likely JS files.
-  const scriptCandidates=scripts.external
-    .filter(likelyScript)
-    .slice(0,10);
-
-  const inspectedScripts=await mapLimit(
-    scriptCandidates,
-    3,
-    async url=>inspectScript(url)
+  const allUrls=unique(
+    files.flatMap(f=>f.candidate_urls||[])
   );
 
-  const scriptHosts=unique(
-    scripts.external.map(u=>{
-      try{return new URL(u).hostname}catch{return ''}
-    })
+  const allRoutes=unique(
+    files.flatMap(f=>f.route_like||[])
   );
 
-  const allDiscoveredUrls=unique([
-    ...interestingPageUrls,
-    ...inspectedScripts.flatMap(x=>x.urls||[])
-  ]);
+  const allCalls=files.flatMap(f=>f.http_calls||[]);
 
-  const externalDataHosts=unique(
-    allDiscoveredUrls.map(u=>{
-      try{
-        const host=new URL(u).hostname;
-        return host && host!=='bchl.ca' && host!=='www.bchl.ca' ? host : '';
-      }catch{
-        return '';
-      }
-    })
-  );
+  const allAssignments=files.flatMap(f=>f.assignments||[]);
+
+  const likelyScheduleEvidence=[
+    ...allUrls.filter(x=>/(schedule|game|score|feed|modulekit)/i.test(x)),
+    ...allRoutes.filter(x=>/(schedule|game|score)/i.test(x)),
+    ...allAssignments
+      .filter(x=>/(schedule|game|score|feed|modulekit|league|season)/i.test(`${x.lhs} ${x.value}`))
+      .map(x=>`${x.lhs} = ${x.value}`)
+  ];
 
   return {
     ok:true,
-    version:'E30.5.6',
-    mode:'data source probe',
-    strategy:'inspect page scripts, iframes, inline JS and JS bundles; no D1 writes',
-    targets:ts.length,
-    page:{
-      date:ds,
-      url:pageUrl,
-      status:page.status,
-      title:titleFromHtml(page.body),
-      content_type:page.content_type,
-      html_chars:page.body.length
+    version:'E30.5.7',
+    mode:'HockeyTech endpoint probe',
+    strategy:'read HockeyTech Statview JS bundles; extract service URLs, HTTP calls and parameters; no D1 writes',
+    targets:ts,
+    files,
+    summary:{
+      files_checked:files.length,
+      files_ok:files.filter(f=>f.status===200).length,
+      candidate_urls:allUrls.length,
+      route_like:allRoutes.length,
+      http_calls:allCalls.length,
+      assignments:allAssignments.length
     },
-    counts:{
-      external_scripts:scripts.external.length,
-      inline_scripts:scripts.inline.length,
-      iframes:iframes.length,
-      links:links.length,
-      interesting_page_urls:interestingPageUrls.length,
-      inspected_scripts:inspectedScripts.length,
-      discovered_candidate_urls:allDiscoveredUrls.length
-    },
-    script_hosts:scriptHosts,
-    external_data_hosts:externalDataHosts,
-    external_scripts:externalMeta.slice(0,50),
-    iframes,
-    interesting_page_urls:interestingPageUrls,
-    inline_candidates:extractInlineCandidates(scripts.inline,pageUrl),
-    inspected_scripts:inspectedScripts,
-    discovered_candidate_urls:allDiscoveredUrls.slice(0,100)
+    likely_schedule_evidence:unique(likelyScheduleEvidence).slice(0,120)
   };
 }
 
@@ -487,8 +346,8 @@ export async function onRequestGet(c){
 
   return json({
     ok:true,
-    version:'E30.5.6',
-    mode:'data source probe',
+    version:'E30.5.7',
+    mode:'HockeyTech endpoint probe',
     targets:await targets(c.env.DB)
   });
 }
@@ -507,7 +366,7 @@ export async function onRequestPost(c){
   }catch(e){
     return json({
       ok:false,
-      version:'E30.5.6',
+      version:'E30.5.7',
       error:String(e)
     },500);
   }

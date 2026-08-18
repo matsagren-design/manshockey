@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Check data source probe
+      - name: Check HockeyTech endpoint probe
         env:
           SYNC_TOKEN: ${{ secrets.MANSHOCKEY_SYNC_TOKEN }}
         run: |
@@ -21,7 +21,7 @@ jobs:
 
           jq -e '.ok == true' targets.json >/dev/null
 
-      - name: Probe BCHL data source
+      - name: Probe HockeyTech endpoints
         env:
           SYNC_TOKEN: ${{ secrets.MANSHOCKEY_SYNC_TOKEN }}
         run: |
@@ -37,31 +37,24 @@ jobs:
           jq -e '.ok == true' probe.json >/dev/null
 
           echo ""
-          echo "=== E30.5.6 DATA SOURCE PROBE ==="
+          echo "=== E30.5.7 HOCKEYTECH ENDPOINT PROBE ==="
           jq -r '"Version: \(.version)"' probe.json
           jq -r '"Mode: \(.mode)"' probe.json
-          jq -r '"Page: \(.page.url)"' probe.json
-          jq -r '"External scripts: \(.counts.external_scripts)"' probe.json
-          jq -r '"Inline scripts: \(.counts.inline_scripts)"' probe.json
-          jq -r '"Iframes: \(.counts.iframes)"' probe.json
-          jq -r '"Candidate URLs: \(.counts.discovered_candidate_urls)"' probe.json
+          jq '.summary' probe.json
 
           echo ""
-          echo "=== EXTERNAL DATA HOSTS ==="
-          jq '.external_data_hosts' probe.json
+          echo "=== LIKELY SCHEDULE EVIDENCE ==="
+          jq '.likely_schedule_evidence' probe.json
 
           echo ""
-          echo "=== INTERESTING PAGE URLS ==="
-          jq '.interesting_page_urls' probe.json
-
-          echo ""
-          echo "=== INLINE CANDIDATES ==="
-          jq '.inline_candidates' probe.json
-
-          echo ""
-          echo "=== INSPECTED SCRIPT BUNDLES ==="
-          jq '.inspected_scripts' probe.json
-
-          echo ""
-          echo "=== DISCOVERED CANDIDATE URLS ==="
-          jq '.discovered_candidate_urls' probe.json
+          echo "=== FILE RESULTS ==="
+          jq -c '.files[] | {
+            url,
+            status,
+            chars,
+            candidate_urls,
+            route_like,
+            http_calls,
+            assignments,
+            markers
+          }' probe.json
