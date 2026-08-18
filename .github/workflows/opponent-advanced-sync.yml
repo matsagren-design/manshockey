@@ -1,0 +1,63 @@
+name: Opponent Advanced Sync
+
+on:
+  workflow_dispatch:
+    inputs:
+      match_id:
+        description: "MansHockey match id"
+        required: false
+        default: "4"
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Sync advanced Form 5
+        env:
+          SYNC_TOKEN: ${{ secrets.MANSHOCKEY_SYNC_TOKEN }}
+          MATCH_ID: ${{ inputs.match_id }}
+        run: |
+          set -euo pipefail
+
+          curl --fail-with-body --silent --show-error --max-time 120 \
+            -X POST \
+            -H "Authorization: Bearer $SYNC_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{\"match_id\":${MATCH_ID}}" \
+            https://manshockey.com/api/opponent-advanced-sync \
+            | tee advanced.json
+
+          jq -e '.ok == true' advanced.json >/dev/null
+          jq -e '.version == "E30.7.1"' advanced.json >/dev/null
+
+          echo ""
+          echo "=== E30.7.1 ADVANCED FORM 5 ==="
+          jq -r '"Opponent: \(.opponent)"' advanced.json
+          jq -r '"Match id: \(.match_id)"' advanced.json
+          jq -r '"Games complete: \(.summary.games_complete) / \(.summary.games_requested)"' advanced.json
+          jq -r '"Confidence: \((.summary.confidence*100)|round)%"' advanced.json
+
+          echo ""
+          echo "=== SHOTS ==="
+          jq '.summary.shots' advanced.json
+
+          echo ""
+          echo "=== POWER PLAY ==="
+          jq '.summary.power_play' advanced.json
+
+          echo ""
+          echo "=== PENALTY KILL ==="
+          jq '.summary.penalty_kill' advanced.json
+
+          echo ""
+          echo "=== DISCIPLINE ==="
+          jq '.summary.discipline' advanced.json
+
+          echo ""
+          echo "=== PERIODS ==="
+          jq '.summary.periods' advanced.json
+
+          echo ""
+          echo "=== GAME DETAIL ==="
+          jq '.games' advanced.json
