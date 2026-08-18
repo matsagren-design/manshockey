@@ -1,0 +1,20 @@
+.intel-panel{
+  margin-top:18px;
+  padding:22px;
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:22px;
+  background:linear-gradient(180deg,rgba(255,255,255,.04),rgba(255,255,255,.02));
+}
+.intel-head{display:flex;justify-content:space-between;gap:16px;align-items:center}
+.intel-head h3{display:flex;align-items:center;gap:8px;margin:6px 0}
+.intel-head button{display:flex;align-items:center;gap:7px}
+.intel-summary{font-size:1.02rem;line-height:1.6}
+.intel-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:16px}
+.intel-grid article{padding:16px;border-radius:16px;background:rgba(3,12,31,.72);border:1px solid rgba(255,255,255,.06)}
+.intel-grid p{margin:.5rem 0 0;color:#9fb0cf}
+.intel-games{margin-top:18px}
+.intel-games h4{display:flex;align-items:center;gap:7px}
+.intel-game{display:grid;grid-template-columns:1fr auto 40px;gap:12px;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.06)}
+.eyebrow{font-size:.72rem;letter-spacing:.14em;color:#ffd21c;font-weight:800}
+@media(max-width:900px){.intel-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){.intel-grid{grid-template-columns:1fr}}
