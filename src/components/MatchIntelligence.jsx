@@ -1,6 +1,7 @@
 import React,{useEffect,useMemo,useRef,useState}from'react';
 import{
-  Brain,RefreshCw,TrendingUp,Activity,Home,Plane,ShieldCheck,Target
+  Brain,RefreshCw,TrendingUp,Activity,Home,Plane,ShieldCheck,Target,
+  Gauge,Disc3,Timer,BarChart3
 }from'lucide-react';
 
 function valueOr(a,b,fallback='–'){
@@ -14,6 +15,10 @@ function StatCard({icon,title,children}){
     <div className="intel-stat-title">{icon}<strong>{title}</strong></div>
     <div className="intel-stat-value">{children}</div>
   </article>;
+}
+
+function pct(v){
+  return v===null||v===undefined?'–':`${v}%`;
 }
 
 export function MatchIntelligence({match}){
@@ -80,6 +85,10 @@ export function MatchIntelligence({match}){
   },[matchId,opponent]);
 
   const a=data?.advanced||{};
+  const st=a.special_teams||{};
+  const shots=a.shots||null;
+  const discipline=a.discipline||null;
+  const periods=Array.isArray(a.periods)?a.periods:[];
 
   const display=useMemo(()=>({
     form5:valueOr(a.form5,data?.form5),
@@ -128,13 +137,8 @@ export function MatchIntelligence({match}){
             : '–'}
         </StatCard>
 
-        <StatCard icon={<Home size={16}/>} title="Hemma">
-          {display.home}
-        </StatCard>
-
-        <StatCard icon={<Plane size={16}/>} title="Borta">
-          {display.away}
-        </StatCard>
+        <StatCard icon={<Home size={16}/>} title="Hemma">{display.home}</StatCard>
+        <StatCard icon={<Plane size={16}/>} title="Borta">{display.away}</StatCard>
 
         <StatCard icon={<Target size={16}/>} title="Målsnitt">
           {display.avgFor!==null&&display.avgAgainst!==null
@@ -146,8 +150,10 @@ export function MatchIntelligence({match}){
           {display.points} verifierade matcher
         </StatCard>
 
-        <StatCard icon={<ShieldCheck size={16}/>} title="Special Teams">
-          {a.special_teams?.note||'Verifierad PP/PK-data finns ännu inte i D1.'}
+        <StatCard icon={<ShieldCheck size={16}/>} title="PP / PK">
+          {st.available
+            ? <>{pct(st.power_play?.pct)} / {pct(st.penalty_kill?.pct)}</>
+            : 'Advanced data saknas'}
         </StatCard>
 
         <StatCard icon={<ShieldCheck size={16}/>} title="Datatillit">
@@ -155,12 +161,56 @@ export function MatchIntelligence({match}){
         </StatCard>
       </div>
 
+      {st.available&&
+        <div className="intel-grid intel-grid-advanced">
+          <StatCard icon={<Gauge size={16}/>} title="Powerplay">
+            {st.power_play?.goals ?? 0}/{st.power_play?.opportunities ?? 0} · {pct(st.power_play?.pct)}
+          </StatCard>
+
+          <StatCard icon={<ShieldCheck size={16}/>} title="Penalty Kill">
+            {st.penalty_kill?.kills ?? 0}/{st.penalty_kill?.opportunities ?? 0} · {pct(st.penalty_kill?.pct)}
+          </StatCard>
+
+          <StatCard icon={<Disc3 size={16}/>} title="Skott">
+            {shots
+              ? <>{shots.for_per_game ?? '–'} för · {shots.against_per_game ?? '–'} emot</>
+              : '–'}
+          </StatCard>
+
+          <StatCard icon={<Timer size={16}/>} title="Disciplin">
+            {discipline
+              ? <>{discipline.pim_per_game ?? '–'} PIM/match · {discipline.infractions_per_game ?? '–'} utv/match</>
+              : '–'}
+          </StatCard>
+        </div>
+      }
+
+      {periods.length>0&&
+        <article className="intel-detail-card intel-period-card">
+          <h4><BarChart3 size={16}/> Periodprofil</h4>
+          <div className="intel-period-grid">
+            {periods.map((p,i)=>
+              <div key={`${p.period}-${i}`} className="intel-period-row">
+                <strong>P{p.period}</strong>
+                <span>{p.gf}–{p.ga}</span>
+                <small>{p.gf_per_game ?? '–'} / {p.ga_per_game ?? '–'} per match</small>
+              </div>
+            )}
+          </div>
+        </article>
+      }
+
       <div className="intel-wide-grid">
         <article className="intel-detail-card">
           <h4><Target size={16}/> Keys to the Game</h4>
           {(a.keys_to_game||[]).length
             ? <ol>{a.keys_to_game.map((x,i)=><li key={i}>{x}</li>)}</ol>
             : <p>Inga verifierade nycklar ännu.</p>}
+
+          {(a.tactical_notes||[]).length>0&&<>
+            <h4 style={{marginTop:16}}>Advanced Notes</h4>
+            <ol>{a.tactical_notes.map((x,i)=><li key={i}>{x}</li>)}</ol>
+          </>}
         </article>
 
         <article className="intel-detail-card">
@@ -177,9 +227,7 @@ export function MatchIntelligence({match}){
 
           {data.last_games.map((g,i)=>
             <div className="intel-game" key={g.external_id||`${g.date}-${i}`}>
-              <span>
-                {new Date(`${g.date}T12:00:00Z`).toLocaleDateString('sv-SE')}
-              </span>
+              <span>{new Date(`${g.date}T12:00:00Z`).toLocaleDateString('sv-SE')}</span>
               <span>{g.venue==='Home'?'Hemma':'Borta'}</span>
               <span>{g.opponent}</span>
               <strong>{g.result}</strong>

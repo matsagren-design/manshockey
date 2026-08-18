@@ -48,13 +48,9 @@ function summarize(rows){
     ga+=gameGa;
 
     if(r.home_away==='Home'){
-      hw+=w?1:0;
-      hl+=l?1:0;
-      ht+=t?1:0;
+      hw+=w?1:0; hl+=l?1:0; ht+=t?1:0;
     }else{
-      aw+=w?1:0;
-      al+=l?1:0;
-      at+=t?1:0;
+      aw+=w?1:0; al+=l?1:0; at+=t?1:0;
     }
 
     games.push({
@@ -83,9 +79,7 @@ function summarize(rows){
 
 function formatRecord(r){
   if(!r)return '–';
-  return r.ties
-    ? `${r.wins}-${r.losses}-${r.ties}`
-    : `${r.wins}-${r.losses}`;
+  return r.ties?`${r.wins}-${r.losses}-${r.ties}`:`${r.wins}-${r.losses}`;
 }
 
 function buildAdvanced(target,f){
@@ -143,16 +137,42 @@ function buildAdvanced(target,f){
     head_to_head_games:null,
     keys_to_game:keys.slice(0,3),
     mans_focus:mans.slice(0,3),
-    special_teams:{
-      available:false,
-      note:'Verifierad PP/PK-data finns ännu inte i D1.'
-    },
     data_points:n,
     data_source:'HockeyTech statviewfeed'
   };
 }
 
-async function generateAI(env,target,f,a){
+function advancedTacticalNotes(target,advancedSummary){
+  const notes=[];
+  if(!advancedSummary)return notes;
+
+  const pp=advancedSummary.power_play||{};
+  const pk=advancedSummary.penalty_kill||{};
+  const shots=advancedSummary.shots||{};
+  const discipline=advancedSummary.discipline||{};
+
+  if(pp.pct!==null&&pp.pct!==undefined){
+    if(pp.pct>=25)notes.push(`${target.opponent} har ett starkt Form 5-powerplay på ${pp.pct}%. Undvik onödiga utvisningar.`);
+    else if(pp.pct<=12)notes.push(`${target.opponent} har haft ett svagt Form 5-powerplay på ${pp.pct}%. Spela aggressivt men disciplinerat i boxplay.`);
+  }
+
+  if(pk.pct!==null&&pk.pct!==undefined){
+    if(pk.pct<=75)notes.push(`Deras Form 5-boxplay är ${pk.pct}%. Brooks bör attackera med trafik, returer och snabba puckförflyttningar.`);
+    else if(pk.pct>=88)notes.push(`Deras Form 5-boxplay är starkt på ${pk.pct}%. Brooks behöver vinna tekningar och skapa andrachanser.`);
+  }
+
+  if(shots.for_per_game!==null&&shots.for_per_game!==undefined){
+    if(shots.for_per_game>=32)notes.push(`${target.opponent} producerar ${shots.for_per_game} skott/match i Form 5. Begränsa pucktid och andravåg.`);
+  }
+
+  if(discipline.pim_per_game!==null&&discipline.pim_per_game!==undefined){
+    if(discipline.pim_per_game>=12)notes.push(`${target.opponent} tar ${discipline.pim_per_game} PIM/match i Form 5. Håll tryck och tvinga fram försvarsaktioner.`);
+  }
+
+  return notes.slice(0,3);
+}
+
+async function generateAI(env,target,f,a,advancedSummary){
   if(!env.OPENAI_API_KEY)return null;
 
   const prompt=`Du är hockeyanalytiker och skriver på svenska.
@@ -161,12 +181,9 @@ MATCH:
 Brooks Bandits möter ${target.opponent}.
 
 VIKTIG BINDNINGSREGEL:
-ALL statistik i "Verifierad Form 5" och "Härledda nycklar" nedan gäller ENDAST ${target.opponent}.
+ALL statistik nedan gäller ENDAST ${target.opponent}.
 Den gäller INTE Brooks Bandits.
-Du får därför aldrig skriva att "Brooks", "Bandits" eller "Brooks Bandits" har dessa mål-, form-, hemma/borta- eller målskillnadssiffror.
-När du refererar till siffrorna ska subjektet vara "${target.opponent}", "motståndaren", "Saints/Oilers/etc." eller motsvarande tydligt motståndarsubjekt.
-
-Brooks är laget som ska anpassa sin taktik UTIFRÅN motståndarens siffror.
+Brooks är laget som ska anpassa sin taktik utifrån motståndarens siffror.
 
 Använd ENDAST verifierade HockeyTech-data nedan.
 Hitta inte på statistik, special teams, spelare, skador eller annan information.
@@ -178,14 +195,17 @@ ${JSON.stringify({
   home_away:target.home_away
 })}
 
-Verifierad Form 5 för ${target.opponent}:
+Verifierad Form 5:
 ${JSON.stringify(f)}
 
-Härledda nycklar för ${target.opponent}:
+Härledda nycklar:
 ${JSON.stringify(a)}
 
-Skriv en kort pre-game-analys, max 120 ord.
-Om data saknas eller är begränsad ska det framgå tydligt.`;
+Verifierad Advanced Form 5 från HockeyTech gameSummary:
+${JSON.stringify(advancedSummary||null)}
+
+Skriv en kort pre-game-analys, max 140 ord.
+Om advanced-data saknas ska du inte låtsas att den finns.`;
 
   const r=await fetch('https://api.openai.com/v1/chat/completions',{
     method:'POST',
@@ -203,14 +223,38 @@ Om data saknas eller är begränsad ska det framgå tydligt.`;
         {role:'user',content:prompt}
       ],
       temperature:.1,
-      max_tokens:220
+      max_tokens:260
     })
   });
 
   if(!r.ok)return null;
-
   const d=await r.json().catch(()=>null);
   return d?.choices?.[0]?.message?.content?.trim()||null;
+}
+
+async function loadAdvanced(db,matchId){
+  const row=await db.prepare(`
+    SELECT match_id,opponent,generated_at,source,
+           games_requested,games_complete,confidence,
+           summary_json,games_json
+      FROM opponent_advanced
+     WHERE match_id=?
+     LIMIT 1
+  `).bind(matchId).first();
+
+  if(!row)return null;
+
+  return {
+    match_id:Number(row.match_id),
+    opponent:row.opponent,
+    generated_at:row.generated_at,
+    source:row.source,
+    games_requested:Number(row.games_requested||0),
+    games_complete:Number(row.games_complete||0),
+    confidence:Number(row.confidence||0),
+    summary:safeParse(row.summary_json,{}),
+    games:safeParse(row.games_json,[])
+  };
 }
 
 async function compute(context,id){
@@ -238,12 +282,21 @@ async function compute(context,id){
 
   const f=summarize(rows);
   const a=buildAdvanced(target,f);
+  const adv=await loadAdvanced(db,id);
+
+  const advValid=
+    adv &&
+    String(adv.opponent||'')===String(target.opponent||'') &&
+    adv.games_complete>0;
+
+  const advancedSummary=advValid?adv.summary:null;
+  const tactical=advancedTacticalNotes(target,advancedSummary);
 
   const summary=f.games.length
     ? `${target.opponent} har ${f.wins}-${f.losses}${f.ties?`-${f.ties}`:''} i sina senaste ${f.games.length} verifierade HockeyTech-matcher före den valda matchen. ${target.opponent} gör ${f.avg_for} mål/match och släpper in ${f.avg_against}.`
     : `Ingen verifierad HockeyTech Form 5-data finns före den valda matchen för ${target.opponent}.`;
 
-  const ai=await generateAI(context.env,target,f,a);
+  const ai=await generateAI(context.env,target,f,a,advancedSummary);
 
   const home=f.games.length
     ? `${target.opponent}: hemma ${a.home_record}, borta ${a.away_record} i Form 5.`
@@ -255,13 +308,36 @@ async function compute(context,id){
 
   const confidence=Math.min(1,f.games.length/5);
 
+  const mergedAdvanced={
+    ...a,
+    special_teams:advancedSummary
+      ? {
+          available:true,
+          power_play:advancedSummary.power_play||null,
+          penalty_kill:advancedSummary.penalty_kill||null,
+          confidence:adv.confidence,
+          games_complete:adv.games_complete,
+          games_requested:adv.games_requested
+        }
+      : {
+          available:false,
+          note:'Advanced Form 5-data saknas ännu för vald match.'
+        },
+    shots:advancedSummary?.shots||null,
+    discipline:advancedSummary?.discipline||null,
+    periods:advancedSummary?.periods||[],
+    advanced_confidence:advValid?adv.confidence:0,
+    advanced_games_complete:advValid?adv.games_complete:0,
+    tactical_notes:tactical
+  };
+
   await db.prepare(`
     INSERT INTO opponent_intel(
       match_id,opponent,generated_at,source,
       form_summary,last_games_json,home_away_summary,
       scoring_summary,ai_summary,confidence,advanced_json
     )
-    VALUES(?,?,CURRENT_TIMESTAMP,'HockeyTech E30.6.1',?,?,?,?,?,?,?)
+    VALUES(?,?,CURRENT_TIMESTAMP,'HockeyTech E30.7.2',?,?,?,?,?,?,?)
     ON CONFLICT(match_id) DO UPDATE SET
       opponent=excluded.opponent,
       generated_at=CURRENT_TIMESTAMP,
@@ -282,21 +358,19 @@ async function compute(context,id){
     score,
     ai||summary,
     confidence,
-    JSON.stringify(a)
+    JSON.stringify(mergedAdvanced)
   ).run();
 
   return {
     match_id:Number(target.id),
     opponent:target.opponent,
-    source:'HockeyTech E30.6.1',
+    source:'HockeyTech E30.7.2',
     form_summary:summary,
     last_games:f.games,
     home_away_summary:home,
     scoring_summary:score,
     ai_summary:ai||summary,
     confidence,
-
-    // Top-level display aliases make the frontend resilient.
     form5:a.form5,
     record:a.record,
     home_record:a.home_record,
@@ -307,8 +381,7 @@ async function compute(context,id){
     avg_for:a.avg_for,
     avg_against:a.avg_against,
     data_points:a.data_points,
-
-    advanced:a
+    advanced:mergedAdvanced
   };
 }
 
@@ -319,18 +392,13 @@ export async function onRequestGet(context){
 
   const u=new URL(context.request.url);
   const id=Number(u.searchParams.get('match_id')||0);
-
-  if(!id){
-    return json({ok:false,error:'match_id krävs'},400);
-  }
+  if(!id)return json({ok:false,error:'match_id krävs'},400);
 
   const target=await context.env.DB.prepare(
     'SELECT id,opponent FROM matches WHERE id=?'
   ).bind(id).first();
 
-  if(!target){
-    return json({ok:false,error:'Match hittades inte'},404);
-  }
+  if(!target)return json({ok:false,error:'Match hittades inte'},404);
 
   const cached=await context.env.DB.prepare(
     'SELECT * FROM opponent_intel WHERE match_id=?'
@@ -340,11 +408,10 @@ export async function onRequestGet(context){
     cached &&
     Number(cached.match_id)===Number(target.id) &&
     String(cached.opponent||'')===String(target.opponent||'') &&
-    String(cached.source||'')==='HockeyTech E30.6.1' &&
+    String(cached.source||'')==='HockeyTech E30.7.2' &&
     cached.advanced_json
   ){
     const advanced=safeParse(cached.advanced_json,{});
-
     return json({
       ok:true,
       cached:true,
@@ -353,7 +420,6 @@ export async function onRequestGet(context){
         match_id:Number(cached.match_id),
         last_games:safeParse(cached.last_games_json,[]),
         advanced,
-
         form5:advanced.form5||'–',
         record:advanced.record||'–',
         home_record:advanced.home_record||'–',
@@ -387,18 +453,12 @@ export async function onRequestGet(context){
 
 export async function onRequestPost(context){
   const user=await requireUser(context);
-
-  if(!user){
-    return json({ok:false,error:'Unauthorized'},401);
-  }
+  if(!user)return json({ok:false,error:'Unauthorized'},401);
 
   try{
     const b=await context.request.json();
     const id=Number(b?.match_id||0);
-
-    if(!id){
-      return json({ok:false,error:'match_id krävs'},400);
-    }
+    if(!id)return json({ok:false,error:'match_id krävs'},400);
 
     return json({
       ok:true,
