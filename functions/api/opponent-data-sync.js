@@ -20,37 +20,13 @@ const TEAM_CODES={
   "Brooks Bandits":"BRK"
 };
 
-function cleanHtml(s){
-  return String(s||'')
-    .replace(/<script[\s\S]*?<\/script>/gi,' ')
-    .replace(/<style[\s\S]*?<\/style>/gi,' ')
-    .replace(/<noscript[\s\S]*?<\/noscript>/gi,' ')
-    .replace(/<[^>]+>/g,'\n')
-    .replace(/&nbsp;|&#160;/gi,' ')
-    .replace(/&amp;/gi,'&')
-    .replace(/&#8211;|&ndash;|&#8212;|&mdash;/gi,'-')
-    .replace(/&#39;/g,"'")
-    .replace(/&quot;/g,'"')
-    .replace(/\r/g,'');
-}
-
-function normalizeText(raw){
-  return cleanHtml(raw)
-    .replace(/[ \t]+/g,' ')
-    .replace(/\n+/g,'\n')
-    .trim();
-}
-
-function flatText(raw){
-  return normalizeText(raw)
-    .replace(/\n/g,' ')
-    .replace(/\s+/g,' ')
-    .trim();
+function cleanSpace(s){
+  return String(s||'').replace(/\s+/g,' ').trim();
 }
 
 function titleFromHtml(raw){
   const m=String(raw||'').match(/<title[^>]*>([\s\S]*?)<\/title>/i);
-  return m ? m[1].replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim() : '';
+  return m ? cleanSpace(m[1].replace(/<[^>]+>/g,' ')) : '';
 }
 
 function isoDate(d){
@@ -59,23 +35,23 @@ function isoDate(d){
 
 async function fetchOfficial(url){
   const ctl=new AbortController();
-  const timer=setTimeout(()=>ctl.abort(),7000);
+  const timer=setTimeout(()=>ctl.abort(),8000);
 
   try{
     const r=await fetch(url,{
       headers:{
-        'user-agent':'Mozilla/5.0 MansHockey/30.5.5',
-        'accept':'text/html,application/xhtml+xml'
+        'user-agent':'Mozilla/5.0 MansHockey/30.5.6',
+        'accept':'text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8'
       },
       signal:ctl.signal
     });
 
-    const html=r.ok ? await r.text() : '';
+    const body=r.ok ? await r.text() : '';
 
     return {
       ok:r.ok,
       status:r.status,
-      html,
+      body,
       content_type:r.headers.get('content-type')||'',
       server:r.headers.get('server')||'',
       cf_cache_status:r.headers.get('cf-cache-status')||''
@@ -84,7 +60,7 @@ async function fetchOfficial(url){
     return {
       ok:false,
       status:0,
-      html:'',
+      body:'',
       content_type:'',
       error:String(err)
     };
@@ -143,6 +119,216 @@ function candidateDates(ts){
   return dates;
 }
 
+function unique(arr){
+  return [...new Set(arr.filter(Boolean))];
+}
+
+function absoluteUrl(v,base){
+  try{
+    return new URL(v,base).toString();
+  }catch{
+    return '';
+  }
+}
+
+function extractScripts(html,base){
+  const external=[];
+  const inline=[];
+
+  const re=/<script\b([^>]*)>([\s\S]*?)<\/script>/gi;
+  let m;
+
+  while((m=re.exec(String(html||'')))!==null){
+    const attrs=m[1]||'';
+    const body=m[2]||'';
+
+    const sm=attrs.match(/\bsrc\s*=\s*["']([^"']+)["']/i);
+
+    if(sm){
+      external.push(absoluteUrl(sm[1],base));
+    }else if(cleanSpace(body)){
+      inline.push(body);
+    }
+  }
+
+  return {
+    external:unique(external),
+    inline
+  };
+}
+
+function extractIframes(html,base){
+  const urls=[];
+  const re=/<iframe\b[^>]*\bsrc\s*=\s*["']([^"']+)["'][^>]*>/gi;
+  let m;
+
+  while((m=re.exec(String(html||'')))!==null){
+    urls.push(absoluteUrl(m[1],base));
+  }
+
+  return unique(urls);
+}
+
+function extractLinks(html,base){
+  const urls=[];
+  const re=/<(?:a|link)\b[^>]*\bhref\s*=\s*["']([^"']+)["'][^>]*>/gi;
+  let m;
+
+  while((m=re.exec(String(html||'')))!==null){
+    urls.push(absoluteUrl(m[1],base));
+  }
+
+  return unique(urls);
+}
+
+function extractUrlLikeStrings(text,base){
+  const out=[];
+
+  const abs=/https?:\/\/[^\s"'<>\\)]+/gi;
+  for(const m of String(text||'').matchAll(abs)){
+    out.push(m[0].replace(/[;,]+$/,''));
+  }
+
+  const rel=/(?:["'`])((?:\/|\.\/|\.\.\/)[^"'`\s<>]{3,240})(?:["'`])/g;
+  for(const m of String(text||'').matchAll(rel)){
+    const u=absoluteUrl(m[1],base);
+    if(u)out.push(u);
+  }
+
+  return unique(out);
+}
+
+function interestingUrl(u){
+  const s=String(u||'').toLowerCase();
+
+  return [
+    'api','ajax','xhr','stats','schedule','score','game','league',
+    'scoreboard','daily','json','feed','widget','iframe','endpoint',
+    'game-center','gamecenter','leaguestat','statview','lscluster'
+  ].some(x=>s.includes(x));
+}
+
+function snippet(text,index,radius=260){
+  const s=String(text||'');
+  if(index<0)return '';
+  return cleanSpace(
+    s.slice(Math.max(0,index-radius),Math.min(s.length,index+radius))
+  ).slice(0,650);
+}
+
+function detectJsMarkers(text){
+  const src=String(text||'');
+  const lower=src.toLowerCase();
+
+  const markers=[
+    'fetch(',
+    'xmlhttprequest',
+    '$.ajax',
+    '$.get(',
+    '$.post(',
+    'axios',
+    'admin-ajax.php',
+    'wp-json',
+    '/api/',
+    'daily-schedule',
+    'league schedule',
+    'scoreboard',
+    'game-center',
+    'gamecenter',
+    'stats/',
+    'leaguestat',
+    'statview',
+    'lscluster',
+    'iframe',
+    'src=',
+    'endpoint',
+    'schedule'
+  ];
+
+  const hits=[];
+
+  for(const marker of markers){
+    let from=0;
+    let count=0;
+
+    while(count<3){
+      const i=lower.indexOf(marker.toLowerCase(),from);
+      if(i<0)break;
+
+      hits.push({
+        marker,
+        sample:snippet(src,i)
+      });
+
+      from=i+marker.length;
+      count++;
+    }
+  }
+
+  return hits;
+}
+
+function extractInlineCandidates(inlineScripts,base){
+  const results=[];
+
+  inlineScripts.forEach((script,index)=>{
+    const hits=detectJsMarkers(script);
+    const urls=extractUrlLikeStrings(script,base).filter(interestingUrl);
+
+    if(hits.length||urls.length){
+      results.push({
+        index,
+        chars:script.length,
+        hits:hits.slice(0,12),
+        urls:urls.slice(0,20)
+      });
+    }
+  });
+
+  return results.slice(0,12);
+}
+
+function classifyExternalScripts(urls){
+  return urls.map(url=>{
+    let host='';
+    try{host=new URL(url).hostname}catch{}
+
+    return {
+      url,
+      host,
+      interesting:interestingUrl(url)
+    };
+  });
+}
+
+async function inspectScript(url){
+  const response=await fetchOfficial(url);
+
+  if(!response.ok){
+    return {
+      url,
+      status:response.status,
+      content_type:response.content_type,
+      chars:0,
+      hits:[],
+      urls:[]
+    };
+  }
+
+  const body=response.body||'';
+
+  return {
+    url,
+    status:response.status,
+    content_type:response.content_type,
+    chars:body.length,
+    hits:detectJsMarkers(body).slice(0,18),
+    urls:extractUrlLikeStrings(body,url)
+      .filter(interestingUrl)
+      .slice(0,30)
+  };
+}
+
 async function mapLimit(items,limit,fn){
   const out=new Array(items.length);
   let next=0;
@@ -162,74 +348,14 @@ async function mapLimit(items,limit,fn){
   return out;
 }
 
-function snippetAround(text,needle,radius=260){
-  const lower=text.toLowerCase();
-  const i=lower.indexOf(String(needle).toLowerCase());
-  if(i<0)return null;
+function likelyScript(url){
+  const s=String(url||'').toLowerCase();
 
-  const start=Math.max(0,i-radius);
-  const end=Math.min(text.length,i+String(needle).length+radius);
-
-  return text.slice(start,end).replace(/\s+/g,' ').trim();
-}
-
-function detectMarkers(raw){
-  const flat=flatText(raw);
-
-  const needles=[
-    'FINAL',
-    'Final',
-    'Brooks',
-    'BRK',
-    'Spruce Grove',
-    'SGS',
-    'Okotoks',
-    'OKO',
-    'Blackfalds',
-    'BFB',
-    'game-center',
-    'daily-schedule',
-    'score',
-    'schedule',
-    'stats',
-    '__NEXT_DATA__',
-    'application/ld+json',
-    'window.',
-    'data-game'
-  ];
-
-  const hits={};
-
-  for(const n of needles){
-    const s=snippetAround(flat,n);
-    if(s)hits[n]=s;
-  }
-
-  return hits;
-}
-
-function rawMarkers(raw){
-  const samples={};
-  const needles=[
-    '__NEXT_DATA__',
-    'application/ld+json',
-    'game-center',
-    'daily-schedule',
-    'FINAL',
-    'BRK',
-    'SGS'
-  ];
-
-  for(const n of needles){
-    const i=String(raw||'').toLowerCase().indexOf(n.toLowerCase());
-    if(i>=0){
-      const start=Math.max(0,i-220);
-      const end=Math.min(String(raw).length,i+n.length+420);
-      samples[n]=String(raw).slice(start,end).replace(/\s+/g,' ').trim();
-    }
-  }
-
-  return samples;
+  return s.endsWith('.js') ||
+    s.includes('.js?') ||
+    s.includes('stats') ||
+    s.includes('score') ||
+    s.includes('league');
 }
 
 async function runProbe(env,db){
@@ -238,66 +364,115 @@ async function runProbe(env,db){
   if(!ts.length){
     return {
       ok:true,
-      version:'E30.5.5',
-      mode:'parser probe',
-      targets:0,
-      probes:[]
+      version:'E30.5.6',
+      mode:'data source probe',
+      targets:0
     };
   }
 
   const dates=candidateDates(ts[0].game_date);
+  const d=dates[Math.floor(dates.length/2)]||dates[0];
 
-  // Probe only a handful of pages. We want visibility, not another full sync.
-  const probeDates=[
-    dates[0],
-    dates[Math.floor(dates.length/4)],
-    dates[Math.floor(dates.length/2)],
-    dates[Math.floor(dates.length*3/4)],
-    dates[dates.length-1]
-  ].filter(Boolean);
-
-  const pages=await mapLimit(probeDates,3,async d=>{
-    const ds=isoDate(d);
-    const url=`https://bchl.ca/stats/daily-schedule/${d.getUTCFullYear()}-${d.getUTCMonth()+1}-${d.getUTCDate()}`;
-    const response=await fetchOfficial(url);
-
+  if(!d){
     return {
-      date:ds,
-      url,
-      ...response
+      ok:false,
+      version:'E30.5.6',
+      error:'Inget probe-datum kunde skapas.'
     };
-  });
+  }
 
-  const probes=pages.map(p=>{
-    const flat=flatText(p.html);
+  const ds=isoDate(d);
+  const pageUrl=`https://bchl.ca/stats/daily-schedule/${d.getUTCFullYear()}-${d.getUTCMonth()+1}-${d.getUTCDate()}`;
+  const page=await fetchOfficial(pageUrl);
 
+  if(!page.ok){
     return {
-      date:p.date,
-      url:p.url,
-      status:p.status,
-      content_type:p.content_type,
-      server:p.server||'',
-      cf_cache_status:p.cf_cache_status||'',
-      html_chars:p.html.length,
-      text_chars:flat.length,
-      title:titleFromHtml(p.html),
-      contains_final:/\bFINAL\b/i.test(flat),
-      contains_known_team:Array.from(Object.values(TEAM_CODES))
-        .some(code=>new RegExp(`\\b${code}\\b`,'i').test(flat)),
-      text_hits:detectMarkers(p.html),
-      raw_hits:rawMarkers(p.html),
-      first_text:flat.slice(0,900)
+      ok:false,
+      version:'E30.5.6',
+      error:'Kunde inte hämta BCHL-sidan.',
+      status:page.status,
+      url:pageUrl
     };
-  });
+  }
+
+  const scripts=extractScripts(page.body,pageUrl);
+  const iframes=extractIframes(page.body,pageUrl);
+  const links=extractLinks(page.body,pageUrl);
+
+  const pageUrls=extractUrlLikeStrings(page.body,pageUrl);
+  const interestingPageUrls=unique([
+    ...pageUrls.filter(interestingUrl),
+    ...links.filter(interestingUrl),
+    ...iframes.filter(interestingUrl),
+    ...scripts.external.filter(interestingUrl)
+  ]).slice(0,80);
+
+  const externalMeta=classifyExternalScripts(scripts.external);
+
+  // Inspect only a bounded set of likely JS files.
+  const scriptCandidates=scripts.external
+    .filter(likelyScript)
+    .slice(0,10);
+
+  const inspectedScripts=await mapLimit(
+    scriptCandidates,
+    3,
+    async url=>inspectScript(url)
+  );
+
+  const scriptHosts=unique(
+    scripts.external.map(u=>{
+      try{return new URL(u).hostname}catch{return ''}
+    })
+  );
+
+  const allDiscoveredUrls=unique([
+    ...interestingPageUrls,
+    ...inspectedScripts.flatMap(x=>x.urls||[])
+  ]);
+
+  const externalDataHosts=unique(
+    allDiscoveredUrls.map(u=>{
+      try{
+        const host=new URL(u).hostname;
+        return host && host!=='bchl.ca' && host!=='www.bchl.ca' ? host : '';
+      }catch{
+        return '';
+      }
+    })
+  );
 
   return {
     ok:true,
-    version:'E30.5.5',
-    mode:'parser probe',
-    strategy:'read-only BCHL response inspection; no D1 writes',
+    version:'E30.5.6',
+    mode:'data source probe',
+    strategy:'inspect page scripts, iframes, inline JS and JS bundles; no D1 writes',
     targets:ts.length,
-    probe_pages:probes.length,
-    probes
+    page:{
+      date:ds,
+      url:pageUrl,
+      status:page.status,
+      title:titleFromHtml(page.body),
+      content_type:page.content_type,
+      html_chars:page.body.length
+    },
+    counts:{
+      external_scripts:scripts.external.length,
+      inline_scripts:scripts.inline.length,
+      iframes:iframes.length,
+      links:links.length,
+      interesting_page_urls:interestingPageUrls.length,
+      inspected_scripts:inspectedScripts.length,
+      discovered_candidate_urls:allDiscoveredUrls.length
+    },
+    script_hosts:scriptHosts,
+    external_data_hosts:externalDataHosts,
+    external_scripts:externalMeta.slice(0,50),
+    iframes,
+    interesting_page_urls:interestingPageUrls,
+    inline_candidates:extractInlineCandidates(scripts.inline,pageUrl),
+    inspected_scripts:inspectedScripts,
+    discovered_candidate_urls:allDiscoveredUrls.slice(0,100)
   };
 }
 
@@ -312,8 +487,8 @@ export async function onRequestGet(c){
 
   return json({
     ok:true,
-    version:'E30.5.5',
-    mode:'parser probe',
+    version:'E30.5.6',
+    mode:'data source probe',
     targets:await targets(c.env.DB)
   });
 }
@@ -332,7 +507,7 @@ export async function onRequestPost(c){
   }catch(e){
     return json({
       ok:false,
-      version:'E30.5.5',
+      version:'E30.5.6',
       error:String(e)
     },500);
   }
