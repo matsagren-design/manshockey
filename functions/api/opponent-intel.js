@@ -106,19 +106,19 @@ function buildAdvanced(target,f){
     }
 
     if(f.avg_against>=4){
-      keys.push(`Attackera målområdet konsekvent – ${f.avg_against} insläppta mål/match i Form 5.`);
+      keys.push(`Attackera målområdet konsekvent – ${target.opponent} har släppt in ${f.avg_against} mål/match i Form 5.`);
     }else if(f.avg_against>=3){
-      keys.push(`Skapa trafik och andrachanser – ${f.avg_against} insläppta mål/match i Form 5.`);
+      keys.push(`Skapa trafik och andrachanser – ${target.opponent} har släppt in ${f.avg_against} mål/match i Form 5.`);
     }else{
-      keys.push('Ha tålamod offensivt och skapa skymning mot ett relativt tätt försvar.');
+      keys.push(`Ha tålamod offensivt och skapa skymning – ${target.opponent} har släppt in ${f.avg_against} mål/match i Form 5.`);
     }
 
     if(f.diff>0){
-      keys.push(`Undvik gratisomställningar – Form 5-målskillnaden är +${f.diff}.`);
+      keys.push(`Undvik gratisomställningar – ${target.opponent} har målskillnad +${f.diff} i Form 5.`);
     }else if(f.diff<0){
-      keys.push(`Tryck på direkt efter puckvinst – Form 5-målskillnaden är ${f.diff}.`);
+      keys.push(`Tryck på direkt efter puckvinst – ${target.opponent} har målskillnad ${f.diff} i Form 5.`);
     }else{
-      keys.push('Vinn specialdetaljerna i fem-mot-fem; Form 5 har jämn målskillnad.');
+      keys.push(`${target.opponent} har jämn målskillnad i Form 5 – vinn detaljerna i fem-mot-fem.`);
     }
 
     mans.push('Äg insidan framför eget mål och vinn första kroppskontakten.');
@@ -155,8 +155,19 @@ function buildAdvanced(target,f){
 async function generateAI(env,target,f,a){
   if(!env.OPENAI_API_KEY)return null;
 
-  const prompt=`Du är hockeyanalytiker.
-Skriv en kort svensk pre-game-analys inför Brooks Bandits mot ${target.opponent}.
+  const prompt=`Du är hockeyanalytiker och skriver på svenska.
+
+MATCH:
+Brooks Bandits möter ${target.opponent}.
+
+VIKTIG BINDNINGSREGEL:
+ALL statistik i "Verifierad Form 5" och "Härledda nycklar" nedan gäller ENDAST ${target.opponent}.
+Den gäller INTE Brooks Bandits.
+Du får därför aldrig skriva att "Brooks", "Bandits" eller "Brooks Bandits" har dessa mål-, form-, hemma/borta- eller målskillnadssiffror.
+När du refererar till siffrorna ska subjektet vara "${target.opponent}", "motståndaren", "Saints/Oilers/etc." eller motsvarande tydligt motståndarsubjekt.
+
+Brooks är laget som ska anpassa sin taktik UTIFRÅN motståndarens siffror.
+
 Använd ENDAST verifierade HockeyTech-data nedan.
 Hitta inte på statistik, special teams, spelare, skador eller annan information.
 
@@ -167,14 +178,14 @@ ${JSON.stringify({
   home_away:target.home_away
 })}
 
-Verifierad Form 5:
+Verifierad Form 5 för ${target.opponent}:
 ${JSON.stringify(f)}
 
-Härledda nycklar:
+Härledda nycklar för ${target.opponent}:
 ${JSON.stringify(a)}
 
-Om data saknas eller är begränsad ska det framgå tydligt.
-Max 120 ord.`;
+Skriv en kort pre-game-analys, max 120 ord.
+Om data saknas eller är begränsad ska det framgå tydligt.`;
 
   const r=await fetch('https://api.openai.com/v1/chat/completions',{
     method:'POST',
@@ -184,8 +195,14 @@ Max 120 ord.`;
     },
     body:JSON.stringify({
       model:'gpt-4.1-mini',
-      messages:[{role:'user',content:prompt}],
-      temperature:.2,
+      messages:[
+        {
+          role:'system',
+          content:'Du är en noggrann hockeyanalytiker. Blanda aldrig ihop motståndarens statistik med Brooks Bandits statistik.'
+        },
+        {role:'user',content:prompt}
+      ],
+      temperature:.1,
       max_tokens:220
     })
   });
@@ -205,10 +222,6 @@ async function compute(context,id){
 
   if(!target)throw new Error('Match hittades inte');
 
-  // Production guardrails:
-  // - only verified HockeyTech rows
-  // - external_id must exist
-  // - only games strictly before the selected target match
   const rows=(await db.prepare(`
     SELECT external_id,opponent,game_date,home_away,opponent_name,
            goals_for,goals_against,result,outcome,source
@@ -227,17 +240,17 @@ async function compute(context,id){
   const a=buildAdvanced(target,f);
 
   const summary=f.games.length
-    ? `${target.opponent} har ${f.wins}-${f.losses}${f.ties?`-${f.ties}`:''} i sina senaste ${f.games.length} verifierade HockeyTech-matcher före den valda matchen. Målsnitt ${f.avg_for} framåt och ${f.avg_against} bakåt.`
+    ? `${target.opponent} har ${f.wins}-${f.losses}${f.ties?`-${f.ties}`:''} i sina senaste ${f.games.length} verifierade HockeyTech-matcher före den valda matchen. ${target.opponent} gör ${f.avg_for} mål/match och släpper in ${f.avg_against}.`
     : `Ingen verifierad HockeyTech Form 5-data finns före den valda matchen för ${target.opponent}.`;
 
   const ai=await generateAI(context.env,target,f,a);
 
   const home=f.games.length
-    ? `Hemma ${a.home_record}, borta ${a.away_record} i Form 5.`
+    ? `${target.opponent}: hemma ${a.home_record}, borta ${a.away_record} i Form 5.`
     : 'Ingen verifierad hemma/borta-data ännu.';
 
   const score=f.games.length
-    ? `${f.avg_for} mål framåt / ${f.avg_against} bakåt. Målskillnad ${f.diff>=0?'+':''}${f.diff}.`
+    ? `${target.opponent}: ${f.avg_for} mål framåt / ${f.avg_against} bakåt. Målskillnad ${f.diff>=0?'+':''}${f.diff}.`
     : 'Måltrend saknas ännu.';
 
   const confidence=Math.min(1,f.games.length/5);
@@ -248,7 +261,7 @@ async function compute(context,id){
       form_summary,last_games_json,home_away_summary,
       scoring_summary,ai_summary,confidence,advanced_json
     )
-    VALUES(?,?,CURRENT_TIMESTAMP,'HockeyTech E30.6.0',?,?,?,?,?,?,?)
+    VALUES(?,?,CURRENT_TIMESTAMP,'HockeyTech E30.6.1',?,?,?,?,?,?,?)
     ON CONFLICT(match_id) DO UPDATE SET
       opponent=excluded.opponent,
       generated_at=CURRENT_TIMESTAMP,
@@ -275,13 +288,26 @@ async function compute(context,id){
   return {
     match_id:Number(target.id),
     opponent:target.opponent,
-    source:'HockeyTech E30.6.0',
+    source:'HockeyTech E30.6.1',
     form_summary:summary,
     last_games:f.games,
     home_away_summary:home,
     scoring_summary:score,
     ai_summary:ai||summary,
     confidence,
+
+    // Top-level display aliases make the frontend resilient.
+    form5:a.form5,
+    record:a.record,
+    home_record:a.home_record,
+    away_record:a.away_record,
+    gf:a.gf,
+    ga:a.ga,
+    diff:a.diff,
+    avg_for:a.avg_for,
+    avg_against:a.avg_against,
+    data_points:a.data_points,
+
     advanced:a
   };
 }
@@ -310,15 +336,15 @@ export async function onRequestGet(context){
     'SELECT * FROM opponent_intel WHERE match_id=?'
   ).bind(id).first();
 
-  // Cache is valid only if it belongs to this exact match/opponent
-  // AND was generated by the production HockeyTech intelligence version.
   if(
     cached &&
     Number(cached.match_id)===Number(target.id) &&
     String(cached.opponent||'')===String(target.opponent||'') &&
-    String(cached.source||'')==='HockeyTech E30.6.0' &&
+    String(cached.source||'')==='HockeyTech E30.6.1' &&
     cached.advanced_json
   ){
+    const advanced=safeParse(cached.advanced_json,{});
+
     return json({
       ok:true,
       cached:true,
@@ -326,7 +352,18 @@ export async function onRequestGet(context){
         ...cached,
         match_id:Number(cached.match_id),
         last_games:safeParse(cached.last_games_json,[]),
-        advanced:safeParse(cached.advanced_json,{})
+        advanced,
+
+        form5:advanced.form5||'–',
+        record:advanced.record||'–',
+        home_record:advanced.home_record||'–',
+        away_record:advanced.away_record||'–',
+        gf:advanced.gf??null,
+        ga:advanced.ga??null,
+        diff:advanced.diff??null,
+        avg_for:advanced.avg_for??null,
+        avg_against:advanced.avg_against??null,
+        data_points:advanced.data_points||0
       }
     });
   }
@@ -350,6 +387,7 @@ export async function onRequestGet(context){
 
 export async function onRequestPost(context){
   const user=await requireUser(context);
+
   if(!user){
     return json({ok:false,error:'Unauthorized'},401);
   }
