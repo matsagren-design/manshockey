@@ -7,7 +7,7 @@ jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
-      - name: Get upcoming opponents
+      - name: Check upcoming opponents
         env:
           SYNC_TOKEN: ${{ secrets.MANSHOCKEY_SYNC_TOKEN }}
         run: |
@@ -15,18 +15,19 @@ jobs:
           curl --fail --silent --show-error --max-time 30 -H "Authorization: Bearer $SYNC_TOKEN" https://manshockey.com/api/opponent-data-sync > targets.json
           cat targets.json
           jq -e '.ok==true' targets.json >/dev/null
-      - name: Sync opponents one request at a time
+      - name: Build league schedule cache once
         env:
           SYNC_TOKEN: ${{ secrets.MANSHOCKEY_SYNC_TOKEN }}
         run: |
           set -euo pipefail
-          jq -c '.targets[]' targets.json | while read -r t; do
-            id=$(echo "$t"|jq -r '.match_id'); name=$(echo "$t"|jq -r '.opponent')
-            echo "=== $name / match $id ==="
-            if curl --fail --silent --show-error --max-time 110 -H "Authorization: Bearer $SYNC_TOKEN" -H "Content-Type: application/json" --data "{\"match_id\":$id}" https://manshockey.com/api/opponent-data-sync > result.json; then
-              cat result.json
-              jq -e '.ok==true' result.json >/dev/null || echo "::warning::$name returned ok=false"
-            else
-              echo "::warning::$name timed out/failed; continuing."
-            fi
-          done
+          curl --fail --silent --show-error --max-time 90 --retry 1 --retry-delay 3 \
+            -H "Authorization: Bearer $SYNC_TOKEN" \
+            -H "Content-Type: application/json" \
+            --data '{}' \
+            https://manshockey.com/api/opponent-data-sync > result.json
+          cat result.json
+          jq -e '.ok==true' result.json >/dev/null
+          echo "Targets: $(jq -r '.targets' result.json)"
+          echo "Pages fetched: $(jq -r '.pages_fetched' result.json) / $(jq -r '.pages_planned' result.json)"
+          echo "Games found: $(jq -r '.games_found' result.json)"
+          echo "Rows saved: $(jq -r '.saved' result.json)"

@@ -8,82 +8,90 @@ const TEAM_CODES={
 "Nanaimo Clippers":"NAN","Victoria Grizzlies":"VIC","Prince George Spruce Kings":"PG","Powell River Kings":"PR"
 };
 const CODE_TEAM=Object.fromEntries(Object.entries(TEAM_CODES).map(([k,v])=>[v,k]));
-const months=["01","02","03","04","05","06","07","08","09","10","11","12"];
-function clean(s){return String(s||'').replace(/\s+/g,' ').trim()}
-async function fcScrape(env,url){
- if(!env.FIRECRAWL_API_KEY)return '';
- const r=await fetch('https://api.firecrawl.dev/v1/scrape',{method:'POST',headers:{Authorization:`Bearer ${env.FIRECRAWL_API_KEY}`,'Content-Type':'application/json'},body:JSON.stringify({url,formats:['markdown'],onlyMainContent:true})});
- if(!r.ok)return '';
- const d=await r.json().catch(()=>null); return d?.data?.markdown||d?.markdown||'';
+function clean(s){return String(s||'').replace(/<script[\s\S]*?<\/script>/gi,' ').replace(/<style[\s\S]*?<\/style>/gi,' ').replace(/<[^>]+>/g,'\n').replace(/&nbsp;|&#160;/g,' ').replace(/&amp;/g,'&').replace(/&#8211;|&ndash;/g,'-').replace(/\r/g,'')}
+function isoDate(d){return d.toISOString().slice(0,10)}
+async function fetchOfficial(url){
+ const ctl=new AbortController(); const timer=setTimeout(()=>ctl.abort(),7000);
+ try{
+  const r=await fetch(url,{headers:{'user-agent':'Mozilla/5.0 MansHockey/30.5.3','accept':'text/html,application/xhtml+xml'},signal:ctl.signal});
+  if(!r.ok)return '';
+  return await r.text();
+ }catch{return ''}finally{clearTimeout(timer)}
 }
-function parseDaily(md,date,target){
- const code=TEAM_CODES[target], games=[];
- if(!code)return games;
- const lines=String(md||'').split('\n').map(clean).filter(Boolean);
- // BCHL daily pages expose compact rows such as "BRK 5", "OKO 1", followed by Final.
+function parseDaily(raw,date,wantedCodes){
+ const text=clean(raw), lines=text.split('\n').map(x=>x.replace(/\s+/g,' ').trim()).filter(Boolean), games=[];
+ // Server-rendered BCHL daily pages contain compact score rows: CODE score ... CODE score ... FINAL.
  for(let i=0;i<lines.length;i++){
-   const a=lines[i].match(/^([A-Z]{2,3})\s+(\d{1,2})$/);
-   if(!a)continue;
-   for(let j=i+1;j<Math.min(i+8,lines.length);j++){
-     const b=lines[j].match(/^([A-Z]{2,3})\s+(\d{1,2})$/);
-     if(!b||b[1]===a[1])continue;
-     const window=lines.slice(i,Math.min(j+8,lines.length)).join(' ');
-     if(!/\bFINAL\b|\bFinal\b/.test(window))continue;
-     if(a[1]!==code&&b[1]!==code)break;
-     const targetFirst=a[1]===code, other=targetFirst?b[1]:a[1];
-     if(!CODE_TEAM[other])break;
-     games.push({game_date:date,opponent_name:CODE_TEAM[other],goals_for:Number(targetFirst?a[2]:b[2]),goals_against:Number(targetFirst?b[2]:a[2]),home_away:targetFirst?'Away':'Home'});
-     break;
-   }
+  const a=lines[i].match(/^([A-Z]{2,3})\s+(\d{1,2})$/); if(!a||!CODE_TEAM[a[1]])continue;
+  for(let j=i+1;j<Math.min(i+14,lines.length);j++){
+   const b=lines[j].match(/^([A-Z]{2,3})\s+(\d{1,2})$/); if(!b||!CODE_TEAM[b[1]]||b[1]===a[1])continue;
+   const win=lines.slice(i,Math.min(j+12,lines.length)).join(' ');
+   if(!/\bFINAL\b/i.test(win))continue;
+   if(!wantedCodes.has(a[1])&&!wantedCodes.has(b[1]))break;
+   games.push({date,away_code:a[1],home_code:b[1],away_goals:Number(a[2]),home_goals:Number(b[2])});
+   break;
+  }
  }
  return games;
 }
-async function save(db,team,games,url){
- let n=0;
- for(const g of games){
-  const outcome=g.goals_for>g.goals_against?'W':g.goals_for<g.goals_against?'L':'T';
-  await db.prepare(`INSERT INTO opponent_games(opponent,game_date,home_away,opponent_name,goals_for,goals_against,result,outcome,game_status,source,source_url,verified,updated_at)
- VALUES(?,?,?,?,?,?,?,?,'Final','BCHL daily schedule',?,1,CURRENT_TIMESTAMP)
- ON CONFLICT(opponent,game_date,opponent_name) DO UPDATE SET home_away=excluded.home_away,goals_for=excluded.goals_for,goals_against=excluded.goals_against,result=excluded.result,outcome=excluded.outcome,source_url=excluded.source_url,verified=1,updated_at=CURRENT_TIMESTAMP`)
- .bind(team,g.game_date,g.home_away,g.opponent_name,g.goals_for,g.goals_against,`${g.goals_for}-${g.goals_against}`,outcome,url).run(); n++;
- }
- return n;
+async function saveGame(db,team,g){
+ const code=TEAM_CODES[team]; if(!code)return 0;
+ const isAway=g.away_code===code, other=isAway?g.home_code:g.away_code;
+ if(!isAway&&g.home_code!==code)return 0;
+ const gf=isAway?g.away_goals:g.home_goals, ga=isAway?g.home_goals:g.away_goals;
+ const outcome=gf>ga?'W':gf<ga?'L':'T';
+ await db.prepare(`INSERT INTO opponent_games(opponent,game_date,home_away,opponent_name,goals_for,goals_against,result,outcome,game_status,source,source_url,verified,updated_at)
+ VALUES(?,?,?,?,?,?,?,?,'Final','BCHL league schedule cache',?,1,CURRENT_TIMESTAMP)
+ ON CONFLICT(opponent,game_date,opponent_name) DO UPDATE SET home_away=excluded.home_away,goals_for=excluded.goals_for,goals_against=excluded.goals_against,result=excluded.result,outcome=excluded.outcome,source=excluded.source,source_url=excluded.source_url,verified=1,updated_at=CURRENT_TIMESTAMP`)
+ .bind(team,g.date,isAway?'Away':'Home',CODE_TEAM[other],gf,ga,`${gf}-${ga}`,outcome,`https://bchl.ca/stats/daily-schedule/${Number(g.date.slice(0,4))}-${Number(g.date.slice(5,7))}-${Number(g.date.slice(8,10))}`).run();
+ return 1;
 }
 async function targets(db){
- const r=(await db.prepare(`SELECT id,opponent,game_date FROM matches WHERE game_date>=datetime('now') AND opponent IS NOT NULL AND trim(opponent)<>'' ORDER BY game_date LIMIT 12`).all()).results||[];
- const seen=new Set(),out=[]; for(const x of r){if(seen.has(x.opponent))continue;seen.add(x.opponent);out.push({match_id:Number(x.id),opponent:x.opponent,game_date:x.game_date});if(out.length>=6)break} return out;
+ const r=(await db.prepare(`SELECT id,opponent,game_date FROM matches WHERE game_date>=datetime('now') AND opponent IS NOT NULL AND trim(opponent)<>'' ORDER BY game_date LIMIT 14`).all()).results||[];
+ const seen=new Set(),out=[]; for(const x of r){if(seen.has(x.opponent)||!TEAM_CODES[x.opponent])continue;seen.add(x.opponent);out.push({match_id:Number(x.id),opponent:x.opponent,game_date:x.game_date});if(out.length>=6)break} return out;
 }
-function isoDate(d){return d.toISOString().slice(0,10)}
-async function syncOne(env,db,target){
- const team=target.opponent, upcoming=new Date(target.game_date), found=[], checked=[];
- // Search backwards over recent completed-season dates. One daily page can contain all league games.
- for(let back=1;back<=75 && found.length<5;back++){
-   const d=new Date(upcoming); d.setUTCDate(d.getUTCDate()-back);
-   const ds=isoDate(d);
-   // BCHL route uses non-zero-padded month/day.
-   const url=`https://bchl.ca/stats/daily-schedule/${d.getUTCFullYear()}-${d.getUTCMonth()+1}-${d.getUTCDate()}`;
-   // Keep Firecrawl as transport/fallback, but parse the official BCHL daily schedule structure.
-   const md=await fcScrape(env,url); checked.push(ds);
-   if(!md)continue;
-   for(const g of parseDaily(md,ds,team)){
-     if(!found.some(x=>x.game_date===g.game_date&&x.opponent_name===g.opponent_name))found.push(g);
-     if(found.length>=5)break;
-   }
+function candidateDates(ts){
+ const upcoming=new Date(ts); const end=new Date(upcoming); end.setUTCDate(end.getUTCDate()-90);
+ const start=new Date(end); start.setUTCDate(start.getUTCDate()-84);
+ const dates=[];
+ for(let d=new Date(end);d>=start;d.setUTCDate(d.getUTCDate()-1)){
+  // BCHL games overwhelmingly fall Wed/Fri/Sat/Sun; this keeps the whole cache refresh under the Worker subrequest budget.
+  if([0,3,5,6].includes(d.getUTCDay()))dates.push(new Date(d));
  }
- const source='https://bchl.ca/stats/daily-schedule';
- const saved=await save(db,team,found.slice(0,5),source);
- return {ok:true,version:'E30.5.2',opponent:team,team_code:TEAM_CODES[team]||null,saved,games:found.slice(0,5),days_checked:checked.length};
+ return dates;
+}
+async function mapLimit(items,limit,fn){
+ const out=new Array(items.length); let next=0;
+ async function worker(){while(true){const i=next++;if(i>=items.length)return;out[i]=await fn(items[i],i)}}
+ await Promise.all(Array.from({length:Math.min(limit,items.length)},worker)); return out;
+}
+async function syncLeague(env,db){
+ const ts=await targets(db); if(!ts.length)return {ok:true,version:'E30.5.3',targets:0,pages_fetched:0,games_found:0,saved:0,details:[]};
+ const wanted=new Set(ts.map(t=>TEAM_CODES[t.opponent]).filter(Boolean));
+ // One shared historical window, fetched once, then reused for every opponent.
+ const dates=candidateDates(ts[0].game_date);
+ const pages=await mapLimit(dates,6,async d=>{
+  const ds=isoDate(d),url=`https://bchl.ca/stats/daily-schedule/${d.getUTCFullYear()}-${d.getUTCMonth()+1}-${d.getUTCDate()}`;
+  const html=await fetchOfficial(url); return {ds,url,html};
+ });
+ const pool=[];
+ for(const p of pages){if(!p?.html)continue; for(const g of parseDaily(p.html,p.ds,wanted))pool.push(g)}
+ const details=[]; let saved=0;
+ for(const t of ts){
+  const code=TEAM_CODES[t.opponent];
+  const games=pool.filter(g=>g.away_code===code||g.home_code===code).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5);
+  let n=0; for(const g of games)n+=await saveGame(db,t.opponent,g); saved+=n;
+  details.push({match_id:t.match_id,opponent:t.opponent,team_code:code,found:games.length,saved:n,games});
+ }
+ return {ok:true,version:'E30.5.3',mode:'league schedule cache',strategy:'single shared BCHL window; direct official fetch; local opponent matching',targets:ts.length,pages_planned:dates.length,pages_fetched:pages.filter(p=>p?.html).length,games_found:pool.length,saved,details};
 }
 export async function onRequestGet(c){
  if(!auth(c.request,c.env))return json({ok:false,error:'Unauthorized'},401);
  if(!c.env.DB)return json({ok:false,error:'D1 saknas'},500);
- return json({ok:true,version:'E30.5.2',mode:'BCHL daily schedule parser',targets:await targets(c.env.DB)});
+ return json({ok:true,version:'E30.5.3',mode:'league schedule cache',targets:await targets(c.env.DB)});
 }
 export async function onRequestPost(c){
  if(!auth(c.request,c.env))return json({ok:false,error:'Unauthorized'},401);
- const b=await c.request.json().catch(()=>({})); const id=Number(b.match_id||0);
- if(!id)return json({ok:false,error:'match_id krävs'},400);
- const t=await c.env.DB.prepare('SELECT id,opponent,game_date FROM matches WHERE id=?').bind(id).first();
- if(!t)return json({ok:false,error:'Match hittades inte'},404);
- try{return json(await syncOne(c.env,c.env.DB,t))}catch(e){return json({ok:false,error:String(e),opponent:t.opponent},500)}
+ if(!c.env.DB)return json({ok:false,error:'D1 saknas'},500);
+ try{return json(await syncLeague(c.env,c.env.DB))}catch(e){return json({ok:false,version:'E30.5.3',error:String(e)},500)}
 }
