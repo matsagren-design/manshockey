@@ -2,15 +2,13 @@ name: Opponent Data Sync
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '17 5 * * *'
 
 jobs:
   sync:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Check upcoming opponents
+      - name: Check parser probe
         env:
           SYNC_TOKEN: ${{ secrets.MANSHOCKEY_SYNC_TOKEN }}
         run: |
@@ -23,39 +21,37 @@ jobs:
 
           jq -e '.ok == true' targets.json >/dev/null
 
-      - name: Build league schedule cache once
+      - name: Probe BCHL response structure
         env:
           SYNC_TOKEN: ${{ secrets.MANSHOCKEY_SYNC_TOKEN }}
         run: |
           set -euo pipefail
 
-          HTTP_CODE=$(curl --silent --show-error --max-time 110 \
-            -o result.json \
-            -w "%{http_code}" \
+          curl --fail-with-body --silent --show-error --max-time 60 \
             -X POST \
             -H "Authorization: Bearer $SYNC_TOKEN" \
             -H "Content-Type: application/json" \
-            https://manshockey.com/api/opponent-data-sync)
-
-          cat result.json
+            https://manshockey.com/api/opponent-data-sync \
+            | tee probe.json
 
           echo ""
-          echo "HTTP status: $HTTP_CODE"
+          echo "=== PROBE SUMMARY ==="
+          jq -r '"Version: \(.version)"' probe.json
+          jq -r '"Mode: \(.mode)"' probe.json
+          jq -r '"Probe pages: \(.probe_pages)"' probe.json
 
-          jq -r '"Pages fetched: \(.pages_fetched // 0) / \(.pages_planned // 0)"' result.json
-          jq -r '"Pages with FINAL: \(.pages_with_final // 0)"' result.json
-          jq -r '"Pages with target code: \(.pages_with_wanted_code // 0)"' result.json
-          jq -r '"Games found: \(.games_found // 0)"' result.json
-          jq -r '"Rows saved: \(.saved // 0)"' result.json
-
-          if ! jq -e '.ok == true' result.json >/dev/null; then
-            echo "::error::Opponent parser returned ok=false"
-            echo "Diagnostics:"
-            jq '.diagnostics // []' result.json
-            exit 1
-          fi
-
-          if [ "$HTTP_CODE" -lt 200 ] || [ "$HTTP_CODE" -ge 300 ]; then
-            echo "::error::Unexpected HTTP status $HTTP_CODE"
-            exit 1
-          fi
+          echo ""
+          echo "=== PAGES ==="
+          jq -c '.probes[] | {
+            date,
+            status,
+            content_type,
+            html_chars,
+            text_chars,
+            title,
+            contains_final,
+            contains_known_team,
+            text_hits,
+            raw_hits,
+            first_text
+          }' probe.json
