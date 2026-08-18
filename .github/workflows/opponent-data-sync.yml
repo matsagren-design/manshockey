@@ -2,13 +2,16 @@ name: Opponent Data Sync
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: '17 5 * * *'
+    - cron: '17 17 * * *'
 
 jobs:
   sync:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Check HockeyTech parser fix
+      - name: Check production sync
         env:
           SYNC_TOKEN: ${{ secrets.MANSHOCKEY_SYNC_TOKEN }}
         run: |
@@ -20,56 +23,42 @@ jobs:
             | tee targets.json
 
           jq -e '.ok == true' targets.json >/dev/null
+          jq -e '.version == "E30.5.9"' targets.json >/dev/null
 
-      - name: Probe parsed HockeyTech schedule data
+      - name: Sync HockeyTech opponent data
         env:
           SYNC_TOKEN: ${{ secrets.MANSHOCKEY_SYNC_TOKEN }}
         run: |
           set -euo pipefail
 
-          curl --fail-with-body --silent --show-error --max-time 90 \
+          curl --fail-with-body --silent --show-error --max-time 110 \
             -X POST \
             -H "Authorization: Bearer $SYNC_TOKEN" \
             -H "Content-Type: application/json" \
             https://manshockey.com/api/opponent-data-sync \
-            | tee probe.json
+            | tee sync.json
 
-          jq -e '.ok == true' probe.json >/dev/null
-
-          echo ""
-          echo "=== E30.5.8.1 HOCKEYTECH PARSER FIX ==="
-          jq -r '"Version: \(.version)"' probe.json
-          jq -r '"Mode: \(.mode)"' probe.json
+          jq -e '.ok == true' sync.json >/dev/null
+          jq -e '.version == "E30.5.9"' sync.json >/dev/null
 
           echo ""
-          echo "=== RESOLVED IDS ==="
-          jq '.resolved' probe.json
+          echo "=== E30.5.9 PRODUCTION OPPONENT SYNC ==="
+          jq -r '"Version: \(.version)"' sync.json
+          jq -r '"Mode: \(.mode)"' sync.json
+          jq -r '"Targets: \(.targets)"' sync.json
+          jq -r '"Unique seasons fetched: \(.unique_seasons_fetched)"' sync.json
+          jq -r '"Games saved: \(.games_saved)"' sync.json
+          jq -r '"Intel cache cleared: \(.intel_cache_cleared)"' sync.json
 
           echo ""
-          echo "=== BOOTSTRAP PARSE ==="
-          jq '.bootstrap | {
-            status,
-            parse_ok,
-            format,
-            body_chars,
-            top_level,
-            arrays
-          }' probe.json
+          echo "=== PER OPPONENT ==="
+          jq -r '.details[] |
+            "\(.opponent): found=\(.found), saved=\(.saved), seasons=\([.selected_seasons[].name] | join(" | "))"' sync.json
 
           echo ""
-          echo "=== SCHEDULE SUMMARY ==="
-          jq -r '.schedule_results[] |
-            "\(.name): status=\(.status), parse=\(.parse_ok), format=\(.format), chars=\(.body_chars), game_like=\(.game_like_rows|length), daily_games=\(.daily_games|length)"' probe.json
-
-          echo ""
-          echo "=== DAILY GAMES ==="
-          jq '[.schedule_results[] |
-            select(.name=="schedule-day") |
-            .daily_games[]]' probe.json
-
-          echo ""
-          echo "=== FIRST GAME-LIKE ROWS ==="
-          jq '[.schedule_results[] | {
-            name,
-            rows:(.game_like_rows[0:5])
-          }]' probe.json
+          echo "=== SAVED GAMES ==="
+          jq '[.details[] | {
+            opponent,
+            target_date,
+            games
+          }]' sync.json
