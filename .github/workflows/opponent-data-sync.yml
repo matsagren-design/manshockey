@@ -1,0 +1,26 @@
+name: Opponent Data Sync
+
+on:
+  schedule:
+    - cron: '30 9 * * *'
+    - cron: '30 21 * * *'
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Sync opponent data
+        env:
+          SYNC_TOKEN: ${{ secrets.MANSHOCKEY_SYNC_TOKEN }}
+        run: |
+          if [ -z "$SYNC_TOKEN" ]; then
+            echo "Missing GitHub secret MANSHOCKEY_SYNC_TOKEN"
+            exit 1
+          fi
+
+          curl --fail-with-body \
+            -X POST \
+            -H "Authorization: Bearer $SYNC_TOKEN" \
+            -H "Accept: application/json" \
+            https://manshockey.com/api/opponent-data-sync
