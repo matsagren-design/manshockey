@@ -1,33 +1,61 @@
 name: Opponent Data Sync
+
 on:
   workflow_dispatch:
   schedule:
     - cron: '17 5 * * *'
+
 jobs:
   sync:
     runs-on: ubuntu-latest
+
     steps:
       - name: Check upcoming opponents
         env:
           SYNC_TOKEN: ${{ secrets.MANSHOCKEY_SYNC_TOKEN }}
         run: |
           set -euo pipefail
-          curl --fail --silent --show-error --max-time 30 -H "Authorization: Bearer $SYNC_TOKEN" https://manshockey.com/api/opponent-data-sync > targets.json
-          cat targets.json
-          jq -e '.ok==true' targets.json >/dev/null
+
+          curl --fail-with-body --silent --show-error --max-time 30 \
+            -H "Authorization: Bearer $SYNC_TOKEN" \
+            https://manshockey.com/api/opponent-data-sync \
+            | tee targets.json
+
+          jq -e '.ok == true' targets.json >/dev/null
+
       - name: Build league schedule cache once
         env:
           SYNC_TOKEN: ${{ secrets.MANSHOCKEY_SYNC_TOKEN }}
         run: |
           set -euo pipefail
-          curl --fail --silent --show-error --max-time 90 --retry 1 --retry-delay 3 \
+
+          HTTP_CODE=$(curl --silent --show-error --max-time 110 \
+            -o result.json \
+            -w "%{http_code}" \
+            -X POST \
             -H "Authorization: Bearer $SYNC_TOKEN" \
             -H "Content-Type: application/json" \
-            --data '{}' \
-            https://manshockey.com/api/opponent-data-sync > result.json
+            https://manshockey.com/api/opponent-data-sync)
+
           cat result.json
-          jq -e '.ok==true' result.json >/dev/null
-          echo "Targets: $(jq -r '.targets' result.json)"
-          echo "Pages fetched: $(jq -r '.pages_fetched' result.json) / $(jq -r '.pages_planned' result.json)"
-          echo "Games found: $(jq -r '.games_found' result.json)"
-          echo "Rows saved: $(jq -r '.saved' result.json)"
+
+          echo ""
+          echo "HTTP status: $HTTP_CODE"
+
+          jq -r '"Pages fetched: \(.pages_fetched // 0) / \(.pages_planned // 0)"' result.json
+          jq -r '"Pages with FINAL: \(.pages_with_final // 0)"' result.json
+          jq -r '"Pages with target code: \(.pages_with_wanted_code // 0)"' result.json
+          jq -r '"Games found: \(.games_found // 0)"' result.json
+          jq -r '"Rows saved: \(.saved // 0)"' result.json
+
+          if ! jq -e '.ok == true' result.json >/dev/null; then
+            echo "::error::Opponent parser returned ok=false"
+            echo "Diagnostics:"
+            jq '.diagnostics // []' result.json
+            exit 1
+          fi
+
+          if [ "$HTTP_CODE" -lt 200 ] || [ "$HTTP_CODE" -ge 300 ]; then
+            echo "::error::Unexpected HTTP status $HTTP_CODE"
+            exit 1
+          fi
