@@ -1,0 +1,49 @@
+name: Opponent Advanced Probe
+
+on:
+  workflow_dispatch:
+    inputs:
+      match_id:
+        description: "MansHockey match id"
+        required: false
+        default: "4"
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Probe advanced HockeyTech data
+        env:
+          SYNC_TOKEN: ${{ secrets.MANSHOCKEY_SYNC_TOKEN }}
+          MATCH_ID: ${{ inputs.match_id }}
+        run: |
+          set -euo pipefail
+
+          curl --fail-with-body --silent --show-error --max-time 120 \
+            -H "Authorization: Bearer $SYNC_TOKEN" \
+            "https://manshockey.com/api/opponent-advanced-probe?match_id=${MATCH_ID}" \
+            | tee probe.json
+
+          jq -e '.ok == true' probe.json >/dev/null
+          jq -e '.version == "E30.7.0"' probe.json >/dev/null
+
+          echo ""
+          echo "=== E30.7.0 ADVANCED INTELLIGENCE PROBE ==="
+          jq '.target' probe.json
+
+          echo ""
+          echo "=== RESOLVED ==="
+          jq '.resolved' probe.json
+
+          echo ""
+          echo "=== CURRENT H2H FROM D1 ==="
+          jq '.current_h2h_from_d1' probe.json
+
+          echo ""
+          echo "=== TEAM STAT PROBES ==="
+          jq '.team_stat_probes' probe.json
+
+          echo ""
+          echo "=== GAME DETAIL PROBES ==="
+          jq '.game_detail_probes' probe.json
