@@ -43,7 +43,7 @@ function TypeIcon({type,size=16}){
   return <Globe2 size={size}/>;
 }
 
-function WatchCard({item,onStatus,onScrape,busyId}){
+function WatchCard({item,onStatus,onScrape,busyId,isAdmin}){
   const busy=busyId===item.id;
   return <article className="tile media-watch-card">
     <div style={{display:'flex',justifyContent:'space-between',gap:12,alignItems:'flex-start'}}>
@@ -76,18 +76,20 @@ function WatchCard({item,onStatus,onScrape,busyId}){
 
     <div style={{display:'flex',gap:8,flexWrap:'wrap',marginTop:16}}>
       <a className="btn" href={item.url} target="_blank" rel="noreferrer"><ExternalLink size={15}/>Öppna</a>
-      <button type="button" className="btn" disabled={busy} onClick={()=>onScrape(item)}>
-        <FileSearch size={15}/>{busy?'Läser…':'Läs hela'}
-      </button>
-      {item.status!=='approved'&&<button type="button" className="btn" disabled={busy} onClick={()=>onStatus(item.id,'approved')}>
-        <CheckCircle2 size={15}/>Godkänn
-      </button>}
-      {item.status!=='irrelevant'&&<button type="button" className="btn" disabled={busy} onClick={()=>onStatus(item.id,'irrelevant')}>
-        <XCircle size={15}/>Irrelevant
-      </button>}
-      {item.status!=='new'&&<button type="button" className="btn" disabled={busy} onClick={()=>onStatus(item.id,'new')}>
-        <Clock size={15}/>Till inkorg
-      </button>}
+      {isAdmin&&<>
+        <button type="button" className="btn" disabled={busy} onClick={()=>onScrape(item)}>
+          <FileSearch size={15}/>{busy?'Läser…':'Läs hela'}
+        </button>
+        {item.status!=='approved'&&<button type="button" className="btn" disabled={busy} onClick={()=>onStatus(item.id,'approved')}>
+          <CheckCircle2 size={15}/>Godkänn
+        </button>}
+        {item.status!=='irrelevant'&&<button type="button" className="btn" disabled={busy} onClick={()=>onStatus(item.id,'irrelevant')}>
+          <XCircle size={15}/>Irrelevant
+        </button>}
+        {item.status!=='new'&&<button type="button" className="btn" disabled={busy} onClick={()=>onStatus(item.id,'new')}>
+          <Clock size={15}/>Till inkorg
+        </button>}
+      </>}
     </div>
   </article>;
 }
@@ -115,7 +117,8 @@ function SummaryCard({icon,title,value}){
   </article>;
 }
 
-export function Media({media=[]}){
+export function Media({media=[],user=null}){
+  const isAdmin=user?.role==='admin';
   const[items,setItems]=useState([]);
   const[summary,setSummary]=useState({total:0,newItems:0,approved:0,irrelevant:0,history:0,background:0,articles:0,social:0,videos:0});
   const[loading,setLoading]=useState(true);
@@ -144,6 +147,7 @@ export function Media({media=[]}){
   }
 
   async function runSearch(){
+    if(!isAdmin){setError('Adminbehörighet krävs för nätsökning.');return;}
     try{
       setSearching(true);setError('');setNotice('');setLastSearch(null);
       const r=await fetch('/api/media-watch',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'search',include_content:false})});
@@ -160,6 +164,7 @@ export function Media({media=[]}){
   }
 
   async function runCleanup(){
+    if(!isAdmin){setError('Adminbehörighet krävs för Smart Inbox.');return;}
     if(!window.confirm('Sortera om befintliga nätträffar till Aktuellt, Historik, Bakgrund eller Irrelevant? Godkända poster skyddas.'))return;
     try{
       setCleaning(true);setError('');setNotice('');setLastCleanup(null);
@@ -179,6 +184,7 @@ export function Media({media=[]}){
   }
 
   async function setStatus(id,status){
+    if(!isAdmin){setError('Adminbehörighet krävs för att ändra status.');return;}
     try{
       setBusyId(id);setError('');
       const r=await fetch('/api/media-watch',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'status',id,status})});
@@ -190,6 +196,7 @@ export function Media({media=[]}){
   }
 
   async function scrapeItem(item){
+    if(!isAdmin){setError('Adminbehörighet krävs för att läsa in externt innehåll.');return;}
     try{
       setBusyId(item.id);setError('');setNotice('');
       const r=await fetch('/api/media-watch',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'scrape',id:item.id,url:item.url})});
@@ -236,7 +243,7 @@ export function Media({media=[]}){
 
   const showingMatch=tab==='match';
 
-  return <Page kicker="Media Intelligence" title="Media och nyheter" action={
+  return <Page kicker="Media Intelligence 3.0" title="Media och nyheter" action={isAdmin?
     <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>
       <button className="btn" type="button" onClick={runCleanup} disabled={cleaning||searching}>
         <ShieldCheck size={16}/>{cleaning?'Sorterar…':'Sortera Smart Inbox'}
@@ -244,7 +251,7 @@ export function Media({media=[]}){
       <button className="btn" type="button" onClick={runSearch} disabled={searching||cleaning}>
         <RefreshCw size={16}/>{searching?'Söker på nätet…':'Sök på nätet'}
       </button>
-    </div>
+    </div>:<span style={{opacity:.65,fontSize:13}}>Läsläge · Admin krävs för sökning och ändringar</span>
   }>
     <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))',gap:12,marginBottom:22}}>
       <SummaryCard icon={<Clock size={20}/>} title="Aktuellt" value={summary.newItems}/>
@@ -304,7 +311,7 @@ export function Media({media=[]}){
           ?<div className="grid">{matchMedia.map((item,index)=><MatchMediaCard item={item} key={item.id||item.url||index}/>)}</div>
           :<div className="tile"><Video size={20}/><h3>Ingen matchmedia</h3><p>Det finns inga matchkopplade mediaobjekt i filtret.</p></div>
         :visibleWatch.length
-          ?<div className="grid">{visibleWatch.map(item=><WatchCard key={item.id||item.url} item={item} busyId={busyId} onStatus={setStatus} onScrape={scrapeItem}/>)}</div>
+          ?<div className="grid">{visibleWatch.map(item=><WatchCard key={item.id||item.url} item={item} busyId={busyId} onStatus={setStatus} onScrape={scrapeItem} isAdmin={isAdmin}/>)}</div>
           :<div className="tile"><Search size={20}/><h3>Inga träffar här</h3><p>Ändra filter eller kör en ny sökning.</p></div>
     }
   </Page>;

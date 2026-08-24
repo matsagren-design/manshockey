@@ -4,7 +4,7 @@
  * E30.9.6 Temporal Classification Fix
  */
 
-const VERSION = "E30.9.6";
+const VERSION = "E30.10.0 Media Intelligence 3.0";
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data, null, 2), {
@@ -14,6 +14,24 @@ function json(data, status = 200) {
       "Cache-Control": "no-store"
     }
   });
+}
+
+function getCookie(request,name){
+  const cookie=request.headers.get("Cookie")||"";
+  for(const part of cookie.split(";").map(x=>x.trim())){
+    const [k,...v]=part.split("=");
+    if(k===name)return decodeURIComponent(v.join("="));
+  }
+  return null;
+}
+
+async function requireAdmin(context){
+  const sid=getCookie(context.request,"mh_session");
+  if(!sid||!context.env.DB)return null;
+  const user=await context.env.DB.prepare(
+    'SELECT users.id,users.email,users.name,users.role FROM sessions JOIN users ON users.id=sessions.user_id WHERE sessions.id=? AND sessions.expires_at > datetime("now") LIMIT 1'
+  ).bind(sid).first();
+  return user?.role==='admin'?user:null;
 }
 
 async function readBody(request) {
@@ -1104,6 +1122,8 @@ export async function onRequest(context) {
     }
 
     if (request.method === "POST") {
+      const admin = await requireAdmin(context);
+      if (!admin) return json({ok:false,error:"Adminbehörighet krävs."}, 401);
       const body = await readBody(request);
       const action = body.action || "search";
 
@@ -1267,6 +1287,8 @@ export async function onRequest(context) {
     }
 
     if (request.method === "DELETE") {
+      const admin = await requireAdmin(context);
+      if (!admin) return json({ok:false,error:"Adminbehörighet krävs."}, 401);
       const id = Number(url.searchParams.get("id"));
 
       if (!id) {

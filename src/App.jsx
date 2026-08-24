@@ -132,7 +132,7 @@ function App(){
       />,
 
     media:
-      <Media media={media}/>,
+      <Media media={media} user={user}/>,
 
     travel:
       <DataPage
