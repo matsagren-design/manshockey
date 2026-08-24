@@ -218,7 +218,7 @@ const[busyId,setBusyId]=useState(null);
   const showingMatch=tab==='match';
 
   return <Page
-  kicker="Media Intelligence 2"
+  kicker="Media Intelligence"
   title="Media och nyheter"
   action={
     <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>
