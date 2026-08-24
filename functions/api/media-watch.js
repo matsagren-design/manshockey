@@ -1,10 +1,10 @@
 /*
  * MansHockey Enterprise 30
  * Media Intelligence
- * E30.9.2 Current Signal Filter
+ * E30.9.3 Current Signal Filter Hotfix
  */
 
-const VERSION = "E30.9.2";
+const VERSION = "E30.9.3";
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data, null, 2), {
@@ -438,7 +438,7 @@ function seasonContext(item) {
 }
 
 function smartBucket(item) {
-  const rel = scoreRelevance(item);
+  const rel = relevanceBreakdown(item);
   const title = normalizeText(item.title);
   const snippet = normalizeText(item.snippet);
   const content = normalizeText(item.content);
