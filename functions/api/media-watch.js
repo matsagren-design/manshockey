@@ -152,86 +152,63 @@ function relevanceBreakdown(item) {
   if (hasPlayer) {
     category = "player";
     score += playerInTitle ? 48 : 38;
-    reasons.push(playerInTitle ? "player-name-title" : "player-name-content");
 
     if (contextHits >= 3) {
       score += 38;
-      reasons.push("strong-hockey-context");
     } else if (contextHits === 2) {
       score += 30;
-      reasons.push("good-hockey-context");
     } else if (contextHits === 1) {
       score += 18;
-      reasons.push("some-hockey-context");
     } else {
       score += 2;
-      reasons.push("name-without-hockey-context");
     }
 
-    if (hasBrooks) {
-      score += 12;
-      reasons.push("brooks");
-    }
-    if (hasBchl) {
-      score += 8;
-      reasons.push("bchl");
-    }
-    if (trustedHost) {
-      score += 6;
-      reasons.push("trusted-hockey-source");
-    }
+    if (hasBrooks) score += 12;
+    if (hasBchl) score += 8;
+    if (trustedHost) score += 6;
+
     if (negative) {
       score -= 80;
-      reasons.push("name-collision-or-genealogy");
     }
   } else if (hasBrooks || (hasBchl && hockeyHits >= 2)) {
     category = "team";
 
-    if (hasBrooks) {
-      score += 44;
-      reasons.push("brooks-team-news");
-    }
-    if (hasBchl) {
-      score += 14;
-      reasons.push("bchl");
-    }
+    if (hasBrooks) score += 44;
+    if (hasBchl) score += 14;
+
     if (hockeyHits >= 3) {
       score += 12;
-      reasons.push("strong-team-hockey-context");
     } else if (hockeyHits >= 1) {
       score += 6;
-      reasons.push("team-hockey-context");
     }
-    if (trustedHost) {
-      score += 6;
-      reasons.push("trusted-hockey-source");
-    }
+
+    if (trustedHost) score += 6;
 
     score = Math.min(score, 78);
   } else if (hockeyHits >= 3 && trustedHost) {
     category = "hockey";
     score = 38;
-    reasons.push("generic-hockey-source");
   }
 
   if (negative && !hasPlayer) {
     score -= 50;
-    reasons.push("genealogy-noise");
   }
 
   if (item.source_type === "social" && !playerInTitle) {
     if (category === "player") {
       score = Math.min(score, 82);
-      reasons.push("social-cap-without-player-title");
     } else if (category === "team") {
       score = Math.min(score, 68);
-      reasons.push("social-team-cap");
     }
   }
 
   score = Math.max(0, Math.min(100, Math.round(score)));
 
-  return { score, category, reasons };
+  return {
+    score,
+    category,
+    reasons
+  };
 }
 
 function relevance(item) {
@@ -400,7 +377,10 @@ async function upsertItem(db, item) {
 async function listItems(db, url) {
   const status = url.searchParams.get("status");
   const type = url.searchParams.get("type");
-  const limit = Math.min(200, Math.max(1, Number(url.searchParams.get("limit") || 100)));
+  const limit = Math.min(
+    200,
+    Math.max(1, Number(url.searchParams.get("limit") || 100))
+  );
 
   const conditions = [];
   const values = [];
@@ -415,7 +395,9 @@ async function listItems(db, url) {
     values.push(type);
   }
 
-  const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+  const where = conditions.length
+    ? `WHERE ${conditions.join(" AND ")}`
+    : "";
 
   const statement = db.prepare(`
     SELECT *
@@ -484,11 +466,19 @@ async function runSearch(db, apiKey, customQueries, includeContent) {
 
   for (const query of queries.slice(0, 8)) {
     try {
-      const response = await firecrawlSearch(apiKey, query, includeContent);
+      const response = await firecrawlSearch(
+        apiKey,
+        query,
+        includeContent
+      );
+
       found.push(...response.results);
       creditsUsed += response.creditsUsed;
     } catch (error) {
-      errors.push({ query, error: error.message });
+      errors.push({
+        query,
+        error: error.message
+      });
     }
   }
 
@@ -537,14 +527,17 @@ async function runSearch(db, apiKey, customQueries, includeContent) {
     errors,
     version: "E30.8.2"
   };
-}
-
-export async function onRequest(context) {
+}export async function onRequest(context) {
   try {
     const db = context.env.DB;
 
     if (!db) {
-      return json({ ok: false, module: "MansMediaWatch", error: "Ingen databasanslutning." }, 500);
+      return json({
+        ok: false,
+        module: "MansMediaWatch",
+        version: "E30.8.2",
+        error: "Ingen databasanslutning."
+      }, 500);
     }
 
     const request = context.request;
@@ -568,6 +561,7 @@ export async function onRequest(context) {
         return json({
           ok: false,
           module: "MansMediaWatch",
+          version: "E30.8.2",
           error: "FIRECRAWL_API_KEY saknas i Cloudflare Secrets."
         }, 500);
       }
@@ -600,7 +594,10 @@ export async function onRequest(context) {
         const targetUrl = clean(body.url);
 
         if (!id || !targetUrl) {
-          return json({ ok: false, error: "Id och URL krävs." }, 400);
+          return json({
+            ok: false,
+            error: "Id och URL krävs."
+          }, 400);
         }
 
         const scraped = await firecrawlScrape(
@@ -625,6 +622,7 @@ export async function onRequest(context) {
         return json({
           ok: true,
           module: "MansMediaWatch",
+          version: "E30.8.2",
           action: "scrape",
           id,
           chars: scraped.markdown.length,
@@ -636,8 +634,14 @@ export async function onRequest(context) {
         const id = Number(body.id);
         const status = clean(body.status);
 
-        if (!id || !["new", "approved", "irrelevant"].includes(status)) {
-          return json({ ok: false, error: "Ogiltigt id eller status." }, 400);
+        if (
+          !id ||
+          !["new", "approved", "irrelevant"].includes(status)
+        ) {
+          return json({
+            ok: false,
+            error: "Ogiltigt id eller status."
+          }, 400);
         }
 
         await db.prepare(`
@@ -645,33 +649,63 @@ export async function onRequest(context) {
           SET status = ?,
               updated_at = CURRENT_TIMESTAMP
           WHERE id = ?
-        `).bind(status, id).run();
+        `).bind(
+          status,
+          id
+        ).run();
 
-        return json({ ok: true, action: "status", id, status });
+        return json({
+          ok: true,
+          module: "MansMediaWatch",
+          version: "E30.8.2",
+          action: "status",
+          id,
+          status
+        });
       }
 
-      return json({ ok: false, error: "Okänd action." }, 400);
+      return json({
+        ok: false,
+        error: "Okänd action."
+      }, 400);
     }
 
     if (request.method === "DELETE") {
-      const id = Number(url.searchParams.get("id"));
+      const id = Number(
+        url.searchParams.get("id")
+      );
 
       if (!id) {
-        return json({ ok: false, error: "Träff-id saknas." }, 400);
+        return json({
+          ok: false,
+          error: "Träff-id saknas."
+        }, 400);
       }
 
-      await db.prepare("DELETE FROM mans_media_watch WHERE id = ?")
+      await db.prepare(
+        "DELETE FROM mans_media_watch WHERE id = ?"
+      )
         .bind(id)
         .run();
 
-      return json({ ok: true, deleted: true, id });
+      return json({
+        ok: true,
+        module: "MansMediaWatch",
+        version: "E30.8.2",
+        deleted: true,
+        id
+      });
     }
 
-    return json({ ok: false, error: "Method not allowed" }, 405);
+    return json({
+      ok: false,
+      error: "Method not allowed"
+    }, 405);
   } catch (error) {
     return json({
       ok: false,
       module: "MansMediaWatch",
+      version: "E30.8.2",
       error: error.message
     }, 500);
   }
