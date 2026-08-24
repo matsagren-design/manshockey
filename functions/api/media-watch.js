@@ -1,10 +1,10 @@
 /*
  * MansHockey Enterprise 30
  * Media Intelligence
- * E30.9.1 Smart Inbox Polish
+ * E30.9.2 Current Signal Filter
  */
 
-const VERSION = "E30.9.1";
+const VERSION = "E30.9.2";
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data, null, 2), {
@@ -438,141 +438,65 @@ function seasonContext(item) {
 }
 
 function smartBucket(item) {
-  const rel = relevanceBreakdown(item);
+  const rel = scoreRelevance(item);
   const title = normalizeText(item.title);
   const snippet = normalizeText(item.snippet);
   const content = normalizeText(item.content);
-  const actualText = `${title} ${snippet} ${content}`.trim();
-
-  const currentHits = countAny(actualText, CURRENT_CONTEXT_TERMS);
-  const historicalHits = countAny(actualText, HISTORICAL_CONTEXT_TERMS);
+  const query = normalizeText(item.search_query);
+  const text = `${title} ${snippet} ${content} ${query}`.trim();
   const age = rel.recency?.days;
   const season = seasonContext(item);
 
   if (rel.category === "wrong_person" || rel.autoIrrelevant) {
-    return {
-      bucket: "irrelevant",
-      status: "irrelevant",
-      reason: "irrelevant-or-wrong-person"
-    };
+    return { bucket:"irrelevant", status:"irrelevant", reason:"identity-filter" };
   }
 
-  if (rel.category === "player") {
-    if (
-      (age !== null && age > 180 && currentHits === 0) ||
-      (historicalHits >= 2 && currentHits === 0) ||
-      (season.historicalByText && !season.currentSeason)
-    ) {
-      return {
-        bucket: "history",
-        status: "history",
-        reason: "player-history"
-      };
-    }
+  const currentTerms = [
+    "2026-27","2026/27","26-27","26/27","signing","signed","commit","committed",
+    "tender","transaction","transactions","trade","traded","roster move","roster update",
+    "lineup","camp","preseason","exhibition","season opener","opening night"
+  ];
+  const genericTerms = [
+    "tag:","roster, news, stats","stats & more","transactions today",
+    "latest trades & signings","videos","best goals","previous season",
+    "all-time","history","archive","where are they now"
+  ];
+  const currentHits=countAny(text,currentTerms);
+  const genericHits=countAny(text,genericTerms);
 
-    if (
-      rel.identity_level === "verified" &&
-      (
-        age === null ||
-        age <= 180 ||
-        currentHits >= 1
-      )
-    ) {
-      return {
-        bucket: "current",
-        status: "new",
-        reason: "verified-current-player"
-      };
-    }
-
-    if (
-      rel.identity_level === "probable" &&
-      (
-        (age !== null && age <= 90) ||
-        currentHits >= 2
-      )
-    ) {
-      return {
-        bucket: "current",
-        status: "new",
-        reason: "probable-current-player"
-      };
-    }
-
-    return {
-      bucket: "history",
-      status: "history",
-      reason: "secondary-player-history"
-    };
+  if(season.historicalByText&&!season.currentSeason){
+    if(rel.category==="player") return {bucket:"history",status:"history",reason:"old-player-season"};
+    return {bucket:"background",status:"background",reason:"old-season-background"};
   }
 
-  if (rel.category === "team") {
-    if (
-      season.historicalByText &&
-      !season.currentSeason
-    ) {
-      return {
-        bucket: "background",
-        status: "background",
-        reason: "historical-team-background"
-      };
-    }
-
-    if (
-      (age !== null && age <= 90) ||
-      currentHits >= 2 ||
-      season.currentSeason
-    ) {
-      return {
-        bucket: "current",
-        status: "new",
-        reason: "current-team"
-      };
-    }
-
-    return {
-      bucket: "background",
-      status: "background",
-      reason: "team-background"
-    };
+  if(rel.category==="player"){
+    if(season.currentSeason||currentHits>=1||(age!==null&&age<=120&&rel.score>=72))
+      return {bucket:"current",status:"new",reason:"current-player-signal"};
+    return {bucket:"history",status:"history",reason:"player-not-current-enough"};
   }
 
-  if (rel.category === "league") {
-    if (
-      rel.score >= 58 &&
-      age !== null &&
-      age <= 30 &&
-      currentHits >= 1
-    ) {
-      return {
-        bucket: "current",
-        status: "new",
-        reason: "fresh-league"
-      };
-    }
-
-    return {
-      bucket: "background",
-      status: "background",
-      reason: "league-background"
-    };
+  if(rel.category==="team"){
+    if(genericHits>=1&&!season.currentSeason&&currentHits===0)
+      return {bucket:"background",status:"background",reason:"generic-team-reference"};
+    if(season.currentSeason||(age!==null&&age<=60&&currentHits>=1)||(age!==null&&age<=30&&rel.score>=70))
+      return {bucket:"current",status:"new",reason:"current-team-signal"};
+    return {bucket:"background",status:"background",reason:"team-background"};
   }
 
-  if (rel.category === "hockey") {
-    return {
-      bucket: "background",
-      status: "background",
-      reason: "general-hockey-background"
-    };
+  if(rel.category==="league"){
+    if(season.currentSeason||(age!==null&&age<=30&&currentHits>=1))
+      return {bucket:"current",status:"new",reason:"current-league-signal"};
+    return {bucket:"background",status:"background",reason:"league-background"};
   }
 
-  return {
-    bucket: "background",
-    status: "background",
-    reason: "other-background"
-  };
+  if(rel.category==="hockey"){
+    if(age!==null&&age<=14&&currentHits>=1)
+      return {bucket:"current",status:"new",reason:"fresh-hockey-signal"};
+    return {bucket:"background",status:"background",reason:"generic-hockey-background"};
+  }
+
+  return {bucket:"irrelevant",status:"irrelevant",reason:"outside-current-scope"};
 }
-
 function relevance(item) {
   return relevanceBreakdown(item).score;
 }
