@@ -1,10 +1,10 @@
 /*
  * MansHockey Enterprise 30
  * Media Intelligence
- * E30.9.0 Media Timeline & Smart Inbox
+ * E30.9.1 Smart Inbox Polish
  */
 
-const VERSION = "E30.9.0";
+const VERSION = "E30.9.1";
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data, null, 2), {
@@ -387,6 +387,56 @@ function relevanceBreakdown(item) {
 }
 
 
+
+function seasonContext(item) {
+  const title = normalizeText(item.title);
+  const snippet = normalizeText(item.snippet);
+  const content = normalizeText(item.content);
+  const text = `${title} ${snippet} ${content}`.trim();
+
+  const currentSeasonPatterns = [
+    /\b2026[\s/–-]*27\b/,
+    /\b26[\s/–-]*27\b/,
+    /\b2026\b/
+  ];
+
+  const oldSeasonPatterns = [
+    /\b2025[\s/–-]*26\b/,
+    /\b2024[\s/–-]*25\b/,
+    /\b2023[\s/–-]*24\b/,
+    /\b2022[\s/–-]*23\b/,
+    /\b2021[\s/–-]*22\b/,
+    /\b2020[\s/–-]*21\b/
+  ];
+
+  const explicitOldClubTerms = [
+    "bjorkloven",
+    "björklöven",
+    "boden",
+    "bodens hf",
+    "lulea hf",
+    "luleå hf",
+    "pitea hc",
+    "piteå hc",
+    "u16",
+    "j20 2024",
+    "j20 2025",
+    "where are they now",
+    "former"
+  ];
+
+  const currentSeason = currentSeasonPatterns.some(re => re.test(text));
+  const oldSeason = oldSeasonPatterns.some(re => re.test(text));
+  const oldClubHits = countAny(text, explicitOldClubTerms);
+
+  return {
+    currentSeason,
+    oldSeason,
+    oldClubHits,
+    historicalByText: oldSeason || oldClubHits >= 1
+  };
+}
+
 function smartBucket(item) {
   const rel = relevanceBreakdown(item);
   const title = normalizeText(item.title);
@@ -397,6 +447,7 @@ function smartBucket(item) {
   const currentHits = countAny(actualText, CURRENT_CONTEXT_TERMS);
   const historicalHits = countAny(actualText, HISTORICAL_CONTEXT_TERMS);
   const age = rel.recency?.days;
+  const season = seasonContext(item);
 
   if (rel.category === "wrong_person" || rel.autoIrrelevant) {
     return {
@@ -409,7 +460,8 @@ function smartBucket(item) {
   if (rel.category === "player") {
     if (
       (age !== null && age > 180 && currentHits === 0) ||
-      (historicalHits >= 2 && currentHits === 0)
+      (historicalHits >= 2 && currentHits === 0) ||
+      (season.historicalByText && !season.currentSeason)
     ) {
       return {
         bucket: "history",
@@ -456,8 +508,20 @@ function smartBucket(item) {
 
   if (rel.category === "team") {
     if (
+      season.historicalByText &&
+      !season.currentSeason
+    ) {
+      return {
+        bucket: "background",
+        status: "background",
+        reason: "historical-team-background"
+      };
+    }
+
+    if (
       (age !== null && age <= 90) ||
-      currentHits >= 2
+      currentHits >= 2 ||
+      season.currentSeason
     ) {
       return {
         bucket: "current",
@@ -807,7 +871,8 @@ async function listItems(db, url) {
       age_days: intelligence.recency.days,
       calculated_relevance: intelligence.score,
       smart_bucket: smart.bucket,
-      smart_reason: smart.reason
+      smart_reason: smart.reason,
+      season_context: seasonContext(item)
     };
   });
 
