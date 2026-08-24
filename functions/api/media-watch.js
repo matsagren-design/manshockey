@@ -78,24 +78,164 @@ function sourceType(url, source = "web") {
   return source === "news" ? "article" : "web";
 }
 
-function relevance(item) {
-  const text = `${item.title || ""} ${item.snippet || ""} ${item.url || ""}`
-    .toLowerCase();
+function normalizedText(value) {
+  return String(value || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function includesAny(text, terms) {
+  return terms.some(term => text.includes(term));
+}
+
+function countHits(text, terms) {
+  return terms.reduce((n, term) => n + (text.includes(term) ? 1 : 0), 0);
+}
+
+function relevanceBreakdown(item) {
+  const title = normalizedText(item.title);
+  const snippet = normalizedText(item.snippet);
+  const content = `${title} ${snippet}`.trim();
+  const host = normalizedText(hostname(item.url));
+
+  const playerNames = ["mans agren"];
+
+  const strongPlayerContext = [
+    "brooks bandits","bchl","hockey","defenseman","defenceman",
+    "defender","back","bjorkloven","boden","u20","j20","junior",
+    "eliteprospects","flohockey","bandits"
+  ];
+
+  const hockeyContext = [
+    "hockey","bchl","flohockey","eliteprospects","roster","schedule",
+    "game","match","defenseman","defenceman","forward","goalie",
+    "coach","playoffs","exhibition","regular season","junior"
+  ];
+
+  const trustedHockeyHosts = [
+    "bchl ca","eliteprospects com","flohockey tv",
+    "brooksbandits ca","hockeycanada ca"
+  ];
+
+  const negativeTerms = [
+    "slakthistoria","slakt","genealogy","ancestry","family tree",
+    "family history","heritage","historiska poster","historical records",
+    "church records","birth records","marriage records","death records",
+    "cemetery","myheritage"
+  ];
+
+  const historicalPatterns = [
+    /\bfodd(?:es)?\s+(?:ar\s+)?1[5-8]\d{2}\b/,
+    /\bborn\s+(?:in\s+)?1[5-8]\d{2}\b/,
+    /\b1[5-8]\d{2}\s*[-–]\s*1[5-8]\d{2}\b/
+  ];
+
+  const hasPlayer = includesAny(content, playerNames);
+  const playerInTitle = includesAny(title, playerNames);
+  const contextHits = countHits(content, strongPlayerContext);
+  const hasBrooks = content.includes("brooks bandits");
+  const hasBchl = content.includes("bchl");
+  const hockeyHits = countHits(content, hockeyContext);
+  const trustedHost = trustedHockeyHosts.some(h => host.includes(h));
+  const negative =
+    includesAny(content, negativeTerms) ||
+    historicalPatterns.some(re => re.test(content));
 
   let score = 0;
+  let category = "other";
+  const reasons = [];
 
-  if (text.includes("måns ågren")) score += 75;
-  if (text.includes("mans agren")) score += 70;
-  if (text.includes("måns agren")) score += 65;
-  if (text.includes("mans ågren")) score += 65;
+  if (hasPlayer) {
+    category = "player";
+    score += playerInTitle ? 48 : 38;
+    reasons.push(playerInTitle ? "player-name-title" : "player-name-content");
 
-  if (text.includes("brooks bandits")) score += 15;
-  if (text.includes("bchl")) score += 10;
-  if (text.includes("hockey")) score += 8;
-  if (text.includes("björklöven")) score += 5;
-  if (text.includes("boden")) score += 4;
+    if (contextHits >= 3) {
+      score += 38;
+      reasons.push("strong-hockey-context");
+    } else if (contextHits === 2) {
+      score += 30;
+      reasons.push("good-hockey-context");
+    } else if (contextHits === 1) {
+      score += 18;
+      reasons.push("some-hockey-context");
+    } else {
+      score += 2;
+      reasons.push("name-without-hockey-context");
+    }
 
-  return Math.min(100, score);
+    if (hasBrooks) {
+      score += 12;
+      reasons.push("brooks");
+    }
+    if (hasBchl) {
+      score += 8;
+      reasons.push("bchl");
+    }
+    if (trustedHost) {
+      score += 6;
+      reasons.push("trusted-hockey-source");
+    }
+    if (negative) {
+      score -= 80;
+      reasons.push("name-collision-or-genealogy");
+    }
+  } else if (hasBrooks || (hasBchl && hockeyHits >= 2)) {
+    category = "team";
+
+    if (hasBrooks) {
+      score += 44;
+      reasons.push("brooks-team-news");
+    }
+    if (hasBchl) {
+      score += 14;
+      reasons.push("bchl");
+    }
+    if (hockeyHits >= 3) {
+      score += 12;
+      reasons.push("strong-team-hockey-context");
+    } else if (hockeyHits >= 1) {
+      score += 6;
+      reasons.push("team-hockey-context");
+    }
+    if (trustedHost) {
+      score += 6;
+      reasons.push("trusted-hockey-source");
+    }
+
+    score = Math.min(score, 78);
+  } else if (hockeyHits >= 3 && trustedHost) {
+    category = "hockey";
+    score = 38;
+    reasons.push("generic-hockey-source");
+  }
+
+  if (negative && !hasPlayer) {
+    score -= 50;
+    reasons.push("genealogy-noise");
+  }
+
+  if (item.source_type === "social" && !playerInTitle) {
+    if (category === "player") {
+      score = Math.min(score, 82);
+      reasons.push("social-cap-without-player-title");
+    } else if (category === "team") {
+      score = Math.min(score, 68);
+      reasons.push("social-team-cap");
+    }
+  }
+
+  score = Math.max(0, Math.min(100, Math.round(score)));
+
+  return { score, category, reasons };
+}
+
+function relevance(item) {
+  return relevanceBreakdown(item).score;
 }
 
 async function firecrawlSearch(apiKey, query, includeContent = false) {
@@ -241,7 +381,7 @@ async function upsertItem(db, item) {
       published_at = COALESCE(excluded.published_at, mans_media_watch.published_at),
       snippet = excluded.snippet,
       search_query = excluded.search_query,
-      relevance_score = MAX(mans_media_watch.relevance_score, excluded.relevance_score),
+      relevance_score = excluded.relevance_score,
       updated_at = CURRENT_TIMESTAMP
   `).bind(
     item.title,
@@ -328,12 +468,14 @@ async function runSearch(db, apiKey, customQueries, includeContent) {
   const queries = customQueries.length
     ? customQueries
     : [
-        '"Måns Ågren"',
-        '"Mans Agren"',
         '"Måns Ågren" hockey',
         '"Mans Agren" hockey',
         '"Måns Ågren" "Brooks Bandits"',
-        '"Mans Agren" BCHL'
+        '"Mans Agren" "Brooks Bandits"',
+        '"Måns Ågren" BCHL',
+        '"Mans Agren" BCHL',
+        '"Brooks Bandits" BCHL',
+        '"Brooks Bandits" hockey'
       ];
 
   const found = [];
@@ -363,8 +505,21 @@ async function runSearch(db, apiKey, customQueries, includeContent) {
   }
 
   let saved = 0;
+  let playerHits = 0;
+  let teamHits = 0;
+  let rejected = 0;
 
   for (const item of unique.values()) {
+    const rel = relevanceBreakdown(item);
+
+    if (rel.score < 50) {
+      rejected += 1;
+      continue;
+    }
+
+    if (rel.category === "player") playerHits += 1;
+    if (rel.category === "team") teamHits += 1;
+
     if (await upsertItem(db, item)) {
       saved += 1;
     }
@@ -375,8 +530,12 @@ async function runSearch(db, apiKey, customQueries, includeContent) {
     found: found.length,
     unique: unique.size,
     saved,
+    playerHits,
+    teamHits,
+    rejected,
     creditsUsed,
-    errors
+    errors,
+    version: "E30.8.2"
   };
 }
 
@@ -395,6 +554,7 @@ export async function onRequest(context) {
       return json({
         ok: true,
         module: "MansMediaWatch",
+        version: "E30.8.2",
         ...(await listItems(db, url)),
         timestamp: new Date().toISOString()
       });
@@ -427,6 +587,7 @@ export async function onRequest(context) {
         return json({
           ok: true,
           module: "MansMediaWatch",
+          version: "E30.8.2",
           action: "search",
           search,
           ...(await listItems(db, url)),
