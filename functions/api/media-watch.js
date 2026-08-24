@@ -99,6 +99,28 @@ function countHits(text, terms) {
   );
 }
 
+/*
+ * ============================================================
+ * E30.8.6 MEDIA INTELLIGENCE
+ * ============================================================
+ *
+ * Klassificering:
+ *
+ * player       = specifik träff om Måns
+ * team         = Brooks Bandits
+ * league       = BCHL
+ * hockey       = allmän relevant hockey
+ * wrong_person = fel Måns Ågren / släktforskning
+ * other        = övrigt
+ *
+ * Samma motor används för:
+ * - relevanspoäng
+ * - automatisk cleanup
+ * - Media Intelligence-filter
+ * - kontroll efter full scrape
+ * ============================================================
+ */
+
 function relevanceBreakdown(item) {
   const title = normalizedText(item.title);
   const snippet = normalizedText(item.snippet);
@@ -210,7 +232,8 @@ function relevanceBreakdown(item) {
   const reasons = [];
 
   /*
-   * HÅRD SPÄRR:
+   * HÅRD SPÄRR
+   *
    * MyHeritage, släktforskning och historiska namnar
    * får aldrig klassas som hockeyspelaren Måns.
    */
@@ -235,11 +258,13 @@ function relevanceBreakdown(item) {
 
     if (playerInTitle) {
       score += 55;
+
       reasons.push(
         "Måns Ågren finns i titeln."
       );
     } else {
       score += 25;
+
       reasons.push(
         "Måns Ågren finns endast i beskrivning/snippet."
       );
@@ -255,6 +280,7 @@ function relevanceBreakdown(item) {
 
     if (hasBrooks) {
       score += 15;
+
       reasons.push(
         "Brooks Bandits-kontext."
       );
@@ -262,6 +288,7 @@ function relevanceBreakdown(item) {
 
     if (hasBchl) {
       score += 8;
+
       reasons.push(
         "BCHL-kontext."
       );
@@ -381,9 +408,7 @@ function relevanceBreakdown(item) {
 
 function relevance(item) {
   return relevanceBreakdown(item).score;
-}
-
-async function firecrawlSearch(
+}async function firecrawlSearch(
   apiKey,
   query,
   includeContent = false
@@ -391,10 +416,12 @@ async function firecrawlSearch(
   const body = {
     query,
     limit: 10,
+
     sources: [
       { type: "web" },
       { type: "news" }
     ],
+
     country: "SE",
     location: "Sweden",
     timeout: 60000,
@@ -414,10 +441,12 @@ async function firecrawlSearch(
     "https://api.firecrawl.dev/v2/search",
     {
       method: "POST",
+
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json"
       },
+
       body: JSON.stringify(body)
     }
   );
@@ -487,6 +516,7 @@ async function firecrawlSearch(
     search_query: query
   }));
 
+
   const news = (
     data.data?.news || []
   ).map(item => ({
@@ -537,6 +567,7 @@ async function firecrawlSearch(
     search_query: query
   }));
 
+
   return {
     results: [
       ...news,
@@ -552,6 +583,7 @@ async function firecrawlSearch(
       data.warning || null
   };
 }
+
 
 async function firecrawlScrape(
   apiKey,
@@ -603,13 +635,22 @@ async function firecrawlScrape(
     metadata:
       data.data?.metadata || {}
   };
-}async function upsertItem(db, item) {
-  const rel = relevanceBreakdown(item);
-  const score = rel.score;
+}
+
+
+async function upsertItem(
+  db,
+  item
+) {
+  const rel =
+    relevanceBreakdown(item);
+
+  const score =
+    rel.score;
 
   /*
-   * Träffar under 50 sparas inte som nya poster.
-   * Tydligt fel person / släktforskning stoppas helt.
+   * Träffar under 50 sparas inte som nya.
+   * Fel person/släktforskning stoppas helt.
    */
   if (
     !item.url ||
@@ -620,63 +661,80 @@ async function firecrawlScrape(
     return false;
   }
 
-  const result = await db.prepare(`
-    INSERT INTO mans_media_watch (
-      external_id,
-      title,
-      source_name,
-      source_type,
-      url,
-      published_at,
-      snippet,
-      search_query,
-      relevance_score,
-      status,
-      updated_at
-    )
-    VALUES (
-      NULL,
-      ?, ?, ?, ?, ?, ?, ?, ?,
-      'new',
-      CURRENT_TIMESTAMP
-    )
+  const result =
+    await db.prepare(`
+      INSERT INTO mans_media_watch (
+        external_id,
+        title,
+        source_name,
+        source_type,
+        url,
+        published_at,
+        snippet,
+        search_query,
+        relevance_score,
+        status,
+        updated_at
+      )
 
-    ON CONFLICT(url) DO UPDATE SET
-      title = excluded.title,
-      source_name = excluded.source_name,
-      source_type = excluded.source_type,
+      VALUES (
+        NULL,
+        ?, ?, ?, ?, ?, ?, ?, ?,
+        'new',
+        CURRENT_TIMESTAMP
+      )
 
-      published_at = COALESCE(
-        excluded.published_at,
-        mans_media_watch.published_at
-      ),
+      ON CONFLICT(url) DO UPDATE SET
 
-      snippet = excluded.snippet,
-      search_query = excluded.search_query,
+        title =
+          excluded.title,
 
-      relevance_score = CASE
-        WHEN mans_media_watch.status = 'approved'
-          THEN mans_media_watch.relevance_score
-        ELSE excluded.relevance_score
-      END,
+        source_name =
+          excluded.source_name,
 
-      status = CASE
-        WHEN mans_media_watch.status = 'approved'
-          THEN 'approved'
-        ELSE mans_media_watch.status
-      END,
+        source_type =
+          excluded.source_type,
 
-      updated_at = CURRENT_TIMESTAMP
-  `).bind(
-    item.title,
-    item.source_name || "",
-    item.source_type || "web",
-    item.url,
-    item.published_at || null,
-    item.snippet || "",
-    item.search_query || "",
-    score
-  ).run();
+        published_at =
+          COALESCE(
+            excluded.published_at,
+            mans_media_watch.published_at
+          ),
+
+        snippet =
+          excluded.snippet,
+
+        search_query =
+          excluded.search_query,
+
+        relevance_score =
+          CASE
+            WHEN mans_media_watch.status = 'approved'
+              THEN mans_media_watch.relevance_score
+            ELSE excluded.relevance_score
+          END,
+
+        status =
+          CASE
+            WHEN mans_media_watch.status = 'approved'
+              THEN 'approved'
+            ELSE mans_media_watch.status
+          END,
+
+        updated_at =
+          CURRENT_TIMESTAMP
+    `)
+      .bind(
+        item.title,
+        item.source_name || "",
+        item.source_type || "web",
+        item.url,
+        item.published_at || null,
+        item.snippet || "",
+        item.search_query || "",
+        score
+      )
+      .run();
 
   return Number(
     result.meta?.changes || 0
@@ -685,11 +743,13 @@ async function firecrawlScrape(
 
 
 /*
- * Räknar om all befintlig Media Watch-data
- * med E30.8.3-modellen.
+ * ============================================================
+ * CLEANUP
+ * ============================================================
  *
- * Viktigt:
- * manuellt GODKÄNDA poster lämnas helt orörda.
+ * Räknar om befintlig Media Watch-data.
+ *
+ * Manuellt GODKÄNDA poster skyddas.
  */
 async function cleanupExisting(db) {
   const rows = (
@@ -704,7 +764,9 @@ async function cleanupExisting(db) {
         search_query,
         relevance_score,
         status
+
       FROM mans_media_watch
+
       ORDER BY id
     `).all()
   ).results || [];
@@ -721,38 +783,47 @@ async function cleanupExisting(db) {
     scanned += 1;
 
     /*
-     * Manuellt godkända träffar ska aldrig
-     * flyttas eller skrivas om automatiskt.
+     * Manuellt godkända poster ändras inte.
      */
-    if (row.status === "approved") {
+    if (
+      row.status ===
+      "approved"
+    ) {
       approvedProtected += 1;
       continue;
     }
 
-    const rel = relevanceBreakdown(row);
+    const rel =
+      relevanceBreakdown(row);
 
-    let nextStatus = row.status;
+    let nextStatus =
+      row.status;
 
-    /*
-     * Tydligt fel person eller mycket låg
-     * relevans flyttas automatiskt till irrelevant.
-     */
     if (
       rel.autoIrrelevant ||
-      rel.category === "wrong_person"
+      rel.category ===
+        "wrong_person"
     ) {
-      nextStatus = "irrelevant";
+      nextStatus =
+        "irrelevant";
     }
 
     const oldScore =
-      Number(row.relevance_score || 0);
+      Number(
+        row.relevance_score || 0
+      );
 
     const scoreChanged =
-      oldScore !== rel.score;
+      oldScore !==
+      rel.score;
 
     const statusChanged =
-      String(row.status || "") !==
-      String(nextStatus || "");
+      String(
+        row.status || ""
+      ) !==
+      String(
+        nextStatus || ""
+      );
 
     if (
       !scoreChanged &&
@@ -764,41 +835,70 @@ async function cleanupExisting(db) {
 
     await db.prepare(`
       UPDATE mans_media_watch
+
       SET
         relevance_score = ?,
         status = ?,
-        updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?
-    `).bind(
-      rel.score,
-      nextStatus,
-      row.id
-    ).run();
+        updated_at =
+          CURRENT_TIMESTAMP
 
-    if (scoreChanged) {
+      WHERE id = ?
+    `)
+      .bind(
+        rel.score,
+        nextStatus,
+        row.id
+      )
+      .run();
+
+
+    if (
+      scoreChanged
+    ) {
       rescored += 1;
     }
 
+
     if (
       statusChanged &&
-      nextStatus === "irrelevant"
+      nextStatus ===
+        "irrelevant"
     ) {
       autoIrrelevant += 1;
     }
 
-    if (examples.length < 20) {
+
+    if (
+      examples.length < 20
+    ) {
       examples.push({
-        id: row.id,
-        title: row.title,
-        old_score: oldScore,
-        new_score: rel.score,
-        old_status: row.status,
-        new_status: nextStatus,
-        category: rel.category,
-        reasons: rel.reasons
+        id:
+          row.id,
+
+        title:
+          row.title,
+
+        old_score:
+          oldScore,
+
+        new_score:
+          rel.score,
+
+        old_status:
+          row.status,
+
+        new_status:
+          nextStatus,
+
+        category:
+          rel.category,
+
+        reasons:
+          rel.reasons
       });
     }
   }
+
 
   return {
     scanned,
@@ -811,144 +911,276 @@ async function cleanupExisting(db) {
 }
 
 
-async function listItems(db, url) {
+/*
+ * ============================================================
+ * LIST ITEMS + E30.8.6 CLASSIFICATION
+ * ============================================================
+ */
+
+async function listItems(
+  db,
+  url
+) {
   const status =
-    url.searchParams.get("status");
+    url.searchParams.get(
+      "status"
+    );
 
   const type =
-    url.searchParams.get("type");
+    url.searchParams.get(
+      "type"
+    );
 
-  const limit = Math.min(
-    200,
-    Math.max(
-      1,
-      Number(
-        url.searchParams.get("limit") ||
-        100
+  /*
+   * E30.8.6
+   *
+   * category kan vara:
+   * player / team / league / hockey / wrong_person / other
+   */
+  const category =
+    clean(
+      url.searchParams.get(
+        "category"
       )
-    )
-  );
+    );
+
+  const limit =
+    Math.min(
+      200,
+      Math.max(
+        1,
+        Number(
+          url.searchParams.get(
+            "limit"
+          ) || 100
+        )
+      )
+    );
+
 
   const conditions = [];
   const values = [];
+
 
   if (status) {
     conditions.push(
       "status = ?"
     );
 
-    values.push(status);
+    values.push(
+      status
+    );
   }
+
 
   if (type) {
     conditions.push(
       "source_type = ?"
     );
 
-    values.push(type);
+    values.push(
+      type
+    );
   }
 
-  const where = conditions.length
-    ? `WHERE ${conditions.join(" AND ")}`
-    : "";
 
-  const statement = db.prepare(`
-    SELECT *
-    FROM mans_media_watch
-    ${where}
+  const where =
+    conditions.length
+      ? `WHERE ${conditions.join(" AND ")}`
+      : "";
 
-    ORDER BY
-      CASE status
-        WHEN 'new' THEN 0
-        WHEN 'approved' THEN 1
-        WHEN 'irrelevant' THEN 2
-        ELSE 3
-      END,
 
-      relevance_score DESC,
+  const statement =
+    db.prepare(`
+      SELECT *
 
-      COALESCE(
-        published_at,
-        created_at
-      ) DESC,
+      FROM mans_media_watch
 
-      id DESC
+      ${where}
 
-    LIMIT ?
-  `);
+      ORDER BY
 
-  const result = values.length
-    ? await statement
-        .bind(
-          ...values,
-          limit
+        CASE status
+          WHEN 'new'
+            THEN 0
+
+          WHEN 'approved'
+            THEN 1
+
+          WHEN 'irrelevant'
+            THEN 2
+
+          ELSE 3
+        END,
+
+        relevance_score DESC,
+
+        COALESCE(
+          published_at,
+          created_at
+        ) DESC,
+
+        id DESC
+
+      LIMIT ?
+    `);
+
+
+  const result =
+    values.length
+
+      ? await statement
+          .bind(
+            ...values,
+            limit
+          )
+          .all()
+
+      : await statement
+          .bind(
+            limit
+          )
+          .all();
+
+
+  /*
+   * E30.8.6:
+   * klassificeringen beräknas dynamiskt,
+   * så ingen D1-migration behövs.
+   */
+  const classifiedItems =
+    (
+      result.results || []
+    ).map(item => {
+
+      const intelligence =
+        relevanceBreakdown(
+          item
+        );
+
+      return {
+        ...item,
+
+        intelligence_category:
+          intelligence.category,
+
+        intelligence_reasons:
+          intelligence.reasons,
+
+        auto_irrelevant:
+          intelligence.autoIrrelevant
+      };
+    });
+
+
+  const filteredItems =
+    category
+
+      ? classifiedItems.filter(
+          item =>
+            item.intelligence_category ===
+            category
         )
-        .all()
 
-    : await statement
-        .bind(limit)
-        .all();
+      : classifiedItems;
 
-  const summary = await db.prepare(`
-    SELECT
-      COUNT(*) AS total,
 
-      SUM(
-        CASE
-          WHEN status = 'new'
-          THEN 1
-          ELSE 0
-        END
-      ) AS new_items,
+  /*
+   * Summering per Intelligence-kategori.
+   */
+  const intelligenceSummary =
+    classifiedItems.reduce(
+      (acc, item) => {
 
-      SUM(
-        CASE
-          WHEN status = 'approved'
-          THEN 1
-          ELSE 0
-        END
-      ) AS approved,
+        const key =
+          item.intelligence_category ||
+          "other";
 
-      SUM(
-        CASE
-          WHEN status = 'irrelevant'
-          THEN 1
-          ELSE 0
-        END
-      ) AS irrelevant,
+        acc[key] =
+          (acc[key] || 0) + 1;
 
-      SUM(
-        CASE
-          WHEN source_type = 'article'
-          THEN 1
-          ELSE 0
-        END
-      ) AS articles,
+        return acc;
+      },
 
-      SUM(
-        CASE
-          WHEN source_type = 'social'
-          THEN 1
-          ELSE 0
-        END
-      ) AS social,
+      {
+        player: 0,
+        team: 0,
+        league: 0,
+        hockey: 0,
+        wrong_person: 0,
+        other: 0
+      }
+    );
 
-      SUM(
-        CASE
-          WHEN source_type = 'video'
-          THEN 1
-          ELSE 0
-        END
-      ) AS videos
 
-    FROM mans_media_watch
-  `).first();
+  const summary =
+    await db.prepare(`
+      SELECT
+
+        COUNT(*) AS total,
+
+        SUM(
+          CASE
+            WHEN status = 'new'
+              THEN 1
+            ELSE 0
+          END
+        ) AS new_items,
+
+        SUM(
+          CASE
+            WHEN status = 'approved'
+              THEN 1
+            ELSE 0
+          END
+        ) AS approved,
+
+        SUM(
+          CASE
+            WHEN status = 'irrelevant'
+              THEN 1
+            ELSE 0
+          END
+        ) AS irrelevant,
+
+        SUM(
+          CASE
+            WHEN source_type = 'article'
+              THEN 1
+            ELSE 0
+          END
+        ) AS articles,
+
+        SUM(
+          CASE
+            WHEN source_type = 'social'
+              THEN 1
+            ELSE 0
+          END
+        ) AS social,
+
+        SUM(
+          CASE
+            WHEN source_type = 'video'
+              THEN 1
+            ELSE 0
+          END
+        ) AS videos
+
+      FROM mans_media_watch
+    `)
+      .first();
+
 
   return {
+
     items:
-      result.results || [],
+      filteredItems,
+
+    intelligenceSummary,
 
     summary: {
+
       total:
         Number(
           summary?.total || 0
@@ -985,17 +1217,13 @@ async function listItems(db, url) {
         )
     }
   };
-}
-
-
-async function runSearch(
+}async function runSearch(
   db,
   apiKey,
   customQueries,
   includeContent
 ) {
   /*
-   * Vi söker inte längre bara på namnet.
    * Varje Måns-fråga innehåller hockeykontext
    * för att minska sammanblandning med namnar.
    */
@@ -1005,19 +1233,12 @@ async function runSearch(
 
       : [
           '"Måns Ågren" hockey',
-
           '"Mans Agren" hockey',
-
           '"Måns Ågren" "Brooks Bandits"',
-
           '"Mans Agren" "Brooks Bandits"',
-
           '"Måns Ågren" BCHL',
-
           '"Mans Agren" BCHL',
-
           '"Brooks Bandits" BCHL',
-
           '"Brooks Bandits" hockey'
         ];
 
@@ -1026,9 +1247,6 @@ async function runSearch(
 
   let creditsUsed = 0;
 
-  /*
-   * Max 8 Firecrawl-sökningar per körning.
-   */
   for (
     const query
     of queries.slice(0, 8)
@@ -1057,11 +1275,11 @@ async function runSearch(
     }
   }
 
+
   /*
-   * Deduplicering per normaliserad URL.
-   *
-   * Om samma URL hittas flera gånger behåller
-   * vi versionen med högst faktisk relevans.
+   * Deduplicering per URL.
+   * Vid dublett behålls den variant
+   * som får högst relevans.
    */
   const unique =
     new Map();
@@ -1086,15 +1304,18 @@ async function runSearch(
     }
   }
 
+
   let saved = 0;
   let playerHits = 0;
   let teamHits = 0;
   let leagueHits = 0;
+  let hockeyHits = 0;
   let rejected = 0;
   let wrongPerson = 0;
 
   const acceptedExamples = [];
   const rejectedExamples = [];
+
 
   for (
     const item
@@ -1103,6 +1324,9 @@ async function runSearch(
     const rel =
       relevanceBreakdown(item);
 
+    /*
+     * Fel person / släktforskning
+     */
     if (
       rel.category ===
       "wrong_person"
@@ -1115,11 +1339,18 @@ async function runSearch(
         15
       ) {
         rejectedExamples.push({
-          title: item.title,
-          url: item.url,
-          score: rel.score,
+          title:
+            item.title,
+
+          url:
+            item.url,
+
+          score:
+            rel.score,
+
           category:
             rel.category,
+
           reasons:
             rel.reasons
         });
@@ -1128,10 +1359,13 @@ async function runSearch(
       continue;
     }
 
+
     /*
      * Inga nya poster under 50 lagras.
      */
-    if (rel.score < 50) {
+    if (
+      rel.score < 50
+    ) {
       rejected += 1;
 
       if (
@@ -1139,11 +1373,18 @@ async function runSearch(
         15
       ) {
         rejectedExamples.push({
-          title: item.title,
-          url: item.url,
-          score: rel.score,
+          title:
+            item.title,
+
+          url:
+            item.url,
+
+          score:
+            rel.score,
+
           category:
             rel.category,
+
           reasons:
             rel.reasons
         });
@@ -1151,6 +1392,7 @@ async function runSearch(
 
       continue;
     }
+
 
     if (
       rel.category ===
@@ -1159,12 +1401,14 @@ async function runSearch(
       playerHits += 1;
     }
 
+
     if (
       rel.category ===
       "team"
     ) {
       teamHits += 1;
     }
+
 
     if (
       rel.category ===
@@ -1173,20 +1417,37 @@ async function runSearch(
       leagueHits += 1;
     }
 
+
+    if (
+      rel.category ===
+      "hockey"
+    ) {
+      hockeyHits += 1;
+    }
+
+
     if (
       acceptedExamples.length <
       15
     ) {
       acceptedExamples.push({
-        title: item.title,
-        url: item.url,
-        score: rel.score,
+        title:
+          item.title,
+
+        url:
+          item.url,
+
+        score:
+          rel.score,
+
         category:
           rel.category,
+
         reasons:
           rel.reasons
       });
     }
+
 
     if (
       await upsertItem(
@@ -1198,9 +1459,10 @@ async function runSearch(
     }
   }
 
+
   return {
     version:
-      "E30.8.3",
+      "E30.8.6",
 
     queries,
 
@@ -1218,6 +1480,8 @@ async function runSearch(
 
     leagueHits,
 
+    hockeyHits,
+
     wrongPerson,
 
     rejected,
@@ -1230,85 +1494,160 @@ async function runSearch(
 
     rejectedExamples
   };
-}export async function onRequest(context) {
+}
+
+
+/*
+ * ============================================================
+ * API
+ * ============================================================
+ */
+
+export async function onRequest(
+  context
+) {
   try {
-    const db = context.env.DB;
+    const db =
+      context.env.DB;
 
     if (!db) {
       return json({
         ok: false,
-        module: "MansMediaWatch",
-        version: "E30.8.3",
-        error: "Ingen databasanslutning."
+        module:
+          "MansMediaWatch",
+        version:
+          "E30.8.6",
+        error:
+          "Ingen databasanslutning."
       }, 500);
     }
 
-    const request = context.request;
-    const url = new URL(request.url);
+
+    const request =
+      context.request;
+
+    const url =
+      new URL(
+        request.url
+      );
+
 
     /*
      * GET
-     * Läs Media Watch + summering.
+     *
+     * Läs Media Watch + klassificering.
      */
-    if (request.method === "GET") {
+    if (
+      request.method ===
+      "GET"
+    ) {
       return json({
         ok: true,
-        module: "MansMediaWatch",
-        version: "E30.8.3",
-        ...(await listItems(db, url)),
-        timestamp: new Date().toISOString()
+
+        module:
+          "MansMediaWatch",
+
+        version:
+          "E30.8.6",
+
+        ...(
+          await listItems(
+            db,
+            url
+          )
+        ),
+
+        timestamp:
+          new Date()
+            .toISOString()
       });
     }
+
 
     /*
      * POST
      */
-    if (request.method === "POST") {
-      const body = await readBody(request);
+    if (
+      request.method ===
+      "POST"
+    ) {
+      const body =
+        await readBody(
+          request
+        );
 
       const action =
-        body.action || "search";
+        body.action ||
+        "search";
+
 
       /*
        * CLEANUP
        *
-       * Räknar om befintliga träffar.
-       * Godkända poster lämnas orörda.
-       *
-       * Denna action använder INTE Firecrawl,
-       * så den kostar inga Firecrawl credits.
+       * Kostar inga Firecrawl credits.
        */
-      if (action === "cleanup") {
+      if (
+        action ===
+        "cleanup"
+      ) {
         const cleanup =
-          await cleanupExisting(db);
+          await cleanupExisting(
+            db
+          );
 
         return json({
           ok: true,
-          module: "MansMediaWatch",
-          version: "E30.8.3",
-          action: "cleanup",
+
+          module:
+            "MansMediaWatch",
+
+          version:
+            "E30.8.6",
+
+          action:
+            "cleanup",
+
           cleanup,
-          ...(await listItems(db, url)),
-          timestamp: new Date().toISOString()
+
+          ...(
+            await listItems(
+              db,
+              url
+            )
+          ),
+
+          timestamp:
+            new Date()
+              .toISOString()
         });
       }
+
 
       /*
        * SEARCH
        */
-      if (action === "search") {
+      if (
+        action ===
+        "search"
+      ) {
         if (
           !context.env
             .FIRECRAWL_API_KEY
         ) {
           return json({
             ok: false,
-            module: "MansMediaWatch",
-            version: "E30.8.3",
+
+            module:
+              "MansMediaWatch",
+
+            version:
+              "E30.8.6",
+
             error:
               "FIRECRAWL_API_KEY saknas i Cloudflare Secrets."
           }, 500);
         }
+
 
         const customQueries =
           Array.isArray(
@@ -1317,65 +1656,90 @@ async function runSearch(
             ? body.queries
                 .map(clean)
                 .filter(Boolean)
+
             : [];
+
 
         const search =
           await runSearch(
             db,
+
             context.env
               .FIRECRAWL_API_KEY,
+
             customQueries,
+
             Boolean(
               body.include_content
             )
           );
 
+
         return json({
           ok: true,
+
           module:
             "MansMediaWatch",
+
           version:
-            "E30.8.3",
+            "E30.8.6",
+
           action:
             "search",
+
           search,
-          ...(await listItems(
-            db,
-            url
-          )),
+
+          ...(
+            await listItems(
+              db,
+              url
+            )
+          ),
+
           timestamp:
             new Date()
               .toISOString()
         });
       }
 
+
       /*
        * SCRAPE
-       *
-       * Läs hela innehållet från en
-       * specifik redan sparad träff.
        */
-      if (action === "scrape") {
+      if (
+        action ===
+        "scrape"
+      ) {
         if (
           !context.env
             .FIRECRAWL_API_KEY
         ) {
           return json({
             ok: false,
+
             module:
               "MansMediaWatch",
+
             version:
-              "E30.8.3",
+              "E30.8.6",
+
             error:
               "FIRECRAWL_API_KEY saknas i Cloudflare Secrets."
           }, 500);
         }
 
+
         const id =
-          Number(body.id);
+          Number(
+            body.id
+          );
+
 
         const targetUrl =
-          clean(body.url);
+          clean(
+            body.url
+          );
+
 
         if (
           !id ||
@@ -1383,17 +1747,21 @@ async function runSearch(
         ) {
           return json({
             ok: false,
+
             error:
               "Id och URL krävs."
           }, 400);
         }
 
+
         const scraped =
           await firecrawlScrape(
             context.env
               .FIRECRAWL_API_KEY,
+
             targetUrl
           );
+
 
         const snippet =
           scraped.markdown
@@ -1402,13 +1770,13 @@ async function runSearch(
               5000
             );
 
-        /*
-         * Uppdatera innehållet först.
-         */
+
         await db.prepare(`
           UPDATE mans_media_watch
+
           SET
             snippet = ?,
+
             source_name =
               COALESCE(
                 NULLIF(
@@ -1417,20 +1785,27 @@ async function runSearch(
                 ),
                 ?
               ),
+
             updated_at =
               CURRENT_TIMESTAMP
+
           WHERE id = ?
-        `).bind(
-          snippet,
-          hostname(
-            targetUrl
-          ),
-          id
-        ).run();
+        `)
+          .bind(
+            snippet,
+
+            hostname(
+              targetUrl
+            ),
+
+            id
+          )
+          .run();
+
 
         /*
-         * Läs posten igen och räkna om
-         * relevansen på det rikare innehållet.
+         * Läs posten igen efter scrape
+         * och kör samma Intelligence-motor.
          */
         const refreshed =
           await db.prepare(`
@@ -1444,15 +1819,20 @@ async function runSearch(
               search_query,
               relevance_score,
               status
+
             FROM mans_media_watch
+
             WHERE id = ?
+
             LIMIT 1
           `)
             .bind(id)
             .first();
 
+
         let relevanceAfterScrape =
           null;
+
 
         if (refreshed) {
           const rel =
@@ -1461,10 +1841,23 @@ async function runSearch(
             );
 
           relevanceAfterScrape =
-            rel;
+            {
+              score:
+                rel.score,
+
+              category:
+                rel.category,
+
+              reasons:
+                rel.reasons,
+
+              autoIrrelevant:
+                rel.autoIrrelevant
+            };
+
 
           /*
-           * Skydda manuellt godkända poster.
+           * Godkända poster skyddas.
            */
           if (
             refreshed.status !==
@@ -1472,56 +1865,78 @@ async function runSearch(
           ) {
             const nextStatus =
               rel.autoIrrelevant
+
                 ? "irrelevant"
+
                 : refreshed.status;
+
 
             await db.prepare(`
               UPDATE mans_media_watch
+
               SET
                 relevance_score = ?,
                 status = ?,
                 updated_at =
                   CURRENT_TIMESTAMP
+
               WHERE id = ?
-            `).bind(
-              rel.score,
-              nextStatus,
-              id
-            ).run();
+            `)
+              .bind(
+                rel.score,
+                nextStatus,
+                id
+              )
+              .run();
           }
         }
 
+
         return json({
           ok: true,
+
           module:
             "MansMediaWatch",
+
           version:
-            "E30.8.3",
+            "E30.8.6",
+
           action:
             "scrape",
+
           id,
+
           chars:
             scraped.markdown
               .length,
+
           relevance:
             relevanceAfterScrape,
+
           content:
             scraped.markdown
         });
       }
 
+
       /*
        * STATUS
-       *
-       * Manuell klassificering:
-       * new / approved / irrelevant
        */
-      if (action === "status") {
+      if (
+        action ===
+        "status"
+      ) {
         const id =
-          Number(body.id);
+          Number(
+            body.id
+          );
+
 
         const status =
-          clean(body.status);
+          clean(
+            body.status
+          );
+
 
         if (
           !id ||
@@ -1529,50 +1944,69 @@ async function runSearch(
             "new",
             "approved",
             "irrelevant"
-          ].includes(status)
+          ].includes(
+            status
+          )
         ) {
           return json({
             ok: false,
+
             error:
               "Ogiltigt id eller status."
           }, 400);
         }
 
+
         await db.prepare(`
           UPDATE mans_media_watch
+
           SET
             status = ?,
             updated_at =
               CURRENT_TIMESTAMP
+
           WHERE id = ?
-        `).bind(
-          status,
-          id
-        ).run();
+        `)
+          .bind(
+            status,
+            id
+          )
+          .run();
+
 
         return json({
           ok: true,
+
           module:
             "MansMediaWatch",
+
           version:
-            "E30.8.3",
+            "E30.8.6",
+
           action:
             "status",
+
           id,
+
           status
         });
       }
 
+
       return json({
         ok: false,
+
         module:
           "MansMediaWatch",
+
         version:
-          "E30.8.3",
+          "E30.8.6",
+
         error:
           "Okänd action."
       }, 400);
     }
+
 
     /*
      * DELETE
@@ -1587,52 +2021,68 @@ async function runSearch(
             .get("id")
         );
 
+
       if (!id) {
         return json({
           ok: false,
+
           error:
             "Träff-id saknas."
         }, 400);
       }
 
-      await db.prepare(
-        `
+
+      await db.prepare(`
         DELETE FROM
           mans_media_watch
+
         WHERE id = ?
-        `
-      )
+      `)
         .bind(id)
         .run();
 
+
       return json({
         ok: true,
+
         module:
           "MansMediaWatch",
+
         version:
-          "E30.8.3",
-        deleted: true,
+          "E30.8.6",
+
+        deleted:
+          true,
+
         id
       });
     }
 
+
     return json({
       ok: false,
+
       module:
         "MansMediaWatch",
+
       version:
-        "E30.8.3",
+        "E30.8.6",
+
       error:
         "Method not allowed"
     }, 405);
 
+
   } catch (error) {
     return json({
       ok: false,
+
       module:
         "MansMediaWatch",
+
       version:
-        "E30.8.3",
+        "E30.8.6",
+
       error:
         error.message
     }, 500);
