@@ -75,7 +75,9 @@ export function Media({media=[]}){
   const[summary,setSummary]=useState({total:0,newItems:0,approved:0,irrelevant:0,articles:0,social:0,videos:0});
   const[loading,setLoading]=useState(true);
   const[searching,setSearching]=useState(false);
-  const[busyId,setBusyId]=useState(null);
+const[cleaning,setCleaning]=useState(false);
+const[lastCleanup,setLastCleanup]=useState(null);
+const[busyId,setBusyId]=useState(null);
   const[error,setError]=useState('');
   const[notice,setNotice]=useState('');
   const[tab,setTab]=useState('inbox');
@@ -111,6 +113,62 @@ export function Media({media=[]}){
     finally{setSearching(false)}
   }
 
+  async function runCleanup(){
+  const confirmed=window.confirm(
+    'Räkna om relevansen för alla befintliga nätträffar? Manuellt godkända träffar lämnas orörda.'
+  );
+
+  if(!confirmed)return;
+
+  try{
+    setCleaning(true);
+    setError('');
+    setNotice('');
+    setLastCleanup(null);
+
+    const r=await fetch('/api/media-watch',{
+      method:'POST',
+      credentials:'include',
+      headers:{
+        'Content-Type':'application/json'
+      },
+      body:JSON.stringify({
+        action:'cleanup'
+      })
+    });
+
+    const d=await r.json();
+
+    if(!r.ok||!d.ok){
+      throw new Error(d?.error||`HTTP ${r.status}`);
+    }
+
+    setItems(Array.isArray(d.items)?d.items:[]);
+
+    if(d.summary){
+      setSummary(d.summary);
+    }
+
+    setLastCleanup(d.cleanup||null);
+
+    const c=d.cleanup||{};
+
+    setNotice(
+      `Rensningen klar. ${c.scanned??0} träffar kontrollerades, `+
+      `${c.rescored??0} räknades om och `+
+      `${c.autoIrrelevant??0} klassades som irrelevanta.`
+    );
+
+    setTab('inbox');
+
+  }catch(e){
+    setError(
+      `Rensningen misslyckades: ${e.message||e}`
+    );
+  }finally{
+    setCleaning(false);
+  }
+}
   async function setStatus(id,status){
     try{
       setBusyId(id); setError('');
@@ -159,7 +217,33 @@ export function Media({media=[]}){
 
   const showingMatch=tab==='match';
 
-  return <Page kicker="Media Intelligence" title="Media och nyheter" action={<button className="btn" type="button" onClick={runSearch} disabled={searching}><RefreshCw size={16}/>{searching?'Söker på nätet…':'Sök på nätet'}</button>}>
+  return <Page
+  kicker="Media Intelligence"
+  title="Media och nyheter"
+  action={
+    <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>
+      <button
+        className="btn"
+        type="button"
+        onClick={runCleanup}
+        disabled={cleaning||searching}
+      >
+        <ShieldCheck size={16}/>
+        {cleaning?'Rensar…':'Rensa irrelevanta'}
+      </button>
+
+      <button
+        className="btn"
+        type="button"
+        onClick={runSearch}
+        disabled={searching||cleaning}
+      >
+        <RefreshCw size={16}/>
+        {searching?'Söker på nätet…':'Sök på nätet'}
+      </button>
+    </div>
+  }
+>
     <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))',gap:12,marginBottom:22}}>
       <SummaryCard icon={<Clock size={20}/>} title="Nya" value={summary.newItems}/>
       <SummaryCard icon={<ShieldCheck size={20}/>} title="Godkända" value={summary.approved}/>
