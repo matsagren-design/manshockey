@@ -137,6 +137,8 @@ export function MediaWatch() {
   const [typeFilter, setTypeFilter] = useState("");
   const [loading, setLoading] = useState(false);
   const [searching, setSearching] = useState(false);
+  const [cleaning, setCleaning] = useState(false);
+const [lastCleanup, setLastCleanup] = useState(null);
   const [busyId, setBusyId] = useState(null);
   const [error, setError] = useState("");
   const [lastSearch, setLastSearch] = useState(null);
@@ -202,7 +204,46 @@ export function MediaWatch() {
     }
   }
 
-  async function updateStatus(id, status) {
+  async function runCleanup() {
+  const ok = window.confirm(
+    "Räkna om relevansen för alla befintliga träffar? " +
+    "Manuellt godkända träffar kommer inte att ändras."
+  );
+
+  if (!ok) return;
+
+  setCleaning(true);
+  setError("");
+
+  try {
+    const response = await fetch("/api/media-watch", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        action: "cleanup"
+      })
+    });
+
+    const json = await response.json();
+
+    if (!response.ok || !json.ok) {
+      throw new Error(
+        json.error || "Cleanup kunde inte genomföras."
+      );
+    }
+
+    setLastCleanup(json.cleanup || null);
+    setData(json);
+  } catch (err) {
+    setError(
+      err.message || "Cleanup kunde inte genomföras."
+    );
+  } finally {
+    setCleaning(false);
+  }
+}async function updateStatus(id, status) {
     setError("");
 
     try {
@@ -342,14 +383,34 @@ export function MediaWatch() {
         </article>
       )}
 
-      <section className="mc-section">
+      {lastCleanup && (
+  <article className="mc-section mediawatch-search-result">
+    <h2>
+      <ShieldX /> Senaste rensning
+    </h2>
+
+    <p>
+      Kontrollerade {lastCleanup.scanned ?? 0} träffar.{" "}
+      Räknade om {lastCleanup.rescored ?? 0}.{" "}
+      Flyttade {lastCleanup.autoIrrelevant ?? 0} till irrelevanta.{" "}
+      Skyddade {lastCleanup.approvedProtected ?? 0} manuellt godkända.
+    </p>
+  </article>
+)}<section className="mc-section">
         <div className="mediawatch-toolbar">
           <div>
             <h2><Newspaper /> Träffar</h2>
             <p>Artiklar, videor och offentligt indexerade sociala inlägg.</p>
           </div>
 
-          <button type="button" onClick={loadItems} disabled={loading}>
+          <button
+  type="button"
+  onClick={runCleanup}
+  disabled={cleaning || searching}
+>
+  <ShieldX size={16} />
+  {cleaning ? "Rensar..." : "Rensa irrelevanta"}
+</button><button type="button" onClick={loadItems} disabled={loading}>
             <RefreshCw size={16} />
             {loading ? "Uppdaterar..." : "Uppdatera"}
           </button>
