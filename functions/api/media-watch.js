@@ -1,9 +1,17 @@
+/*
+ * MansHockey Enterprise 30
+ * Media Intelligence
+ * E30.8.7 Precision & Recency Engine
+ */
+
+const VERSION = "E30.8.7";
+
 function json(data, status = 200) {
-  return new Response(JSON.stringify(data), {
+  return new Response(JSON.stringify(data, null, 2), {
     status,
     headers: {
-      "content-type": "application/json; charset=utf-8",
-      "cache-control": "no-store"
+      "Content-Type": "application/json; charset=utf-8",
+      "Cache-Control": "no-store"
     }
   });
 }
@@ -17,29 +25,31 @@ async function readBody(request) {
 }
 
 function clean(value) {
-  return String(value || "").trim();
+  return String(value ?? "").replace(/\s+/g, " ").trim();
+}
+
+function normalizeText(value) {
+  return clean(value)
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
 }
 
 function normalizeUrl(value) {
+  const raw = clean(value);
+  if (!raw) return "";
   try {
-    const url = new URL(value);
-    url.hash = "";
-
+    const u = new URL(raw);
+    u.hash = "";
     for (const key of [
-      "utm_source",
-      "utm_medium",
-      "utm_campaign",
-      "utm_term",
-      "utm_content",
-      "fbclid",
-      "gclid"
+      "utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content",
+      "fbclid", "gclid"
     ]) {
-      url.searchParams.delete(key);
+      u.searchParams.delete(key);
     }
-
-    return url.toString();
+    return u.toString();
   } catch {
-    return clean(value);
+    return raw;
   }
 }
 
@@ -51,377 +61,233 @@ function hostname(value) {
   }
 }
 
-function sourceType(url, source = "web") {
+function sourceType(url, fallback = "web") {
   const host = hostname(url).toLowerCase();
+
+  if (
+    host.includes("instagram.com") ||
+    host.includes("facebook.com") ||
+    host.includes("x.com") ||
+    host.includes("twitter.com") ||
+    host.includes("tiktok.com") ||
+    host.includes("threads.net")
+  ) return "social";
 
   if (
     host.includes("youtube.com") ||
     host.includes("youtu.be") ||
     host.includes("vimeo.com")
-  ) {
-    return "video";
-  }
+  ) return "video";
 
   if (
-    host.includes("instagram.com") ||
-    host.includes("facebook.com") ||
-    host.includes("threads.net") ||
-    host.includes("x.com") ||
-    host.includes("twitter.com") ||
-    host.includes("tiktok.com") ||
-    host.includes("bsky.app") ||
-    host.includes("linkedin.com")
-  ) {
-    return "social";
+    host.includes("bchl.ca") ||
+    host.includes("flohockey.tv") ||
+    host.includes("eliteprospects.com") ||
+    host.includes("thehockeynews.com") ||
+    host.includes("dailyfaceoff.com") ||
+    host.includes("hockeysverige.se")
+  ) return "article";
+
+  return fallback || "web";
+}
+
+const BLOCKED_HOSTS = [
+  "myheritage.se",
+  "myheritage.com",
+  "ancestry.com",
+  "ancestry.se",
+  "geni.com",
+  "geneanet.org",
+  "familysearch.org"
+];
+
+const WRONG_PERSON_TERMS = [
+  "släkthistoria", "slakthistoria", "släktforskning", "slaktforskning",
+  "genealogy", "family tree", "historiska poster", "historical records",
+  "föddes år", "foddes ar", "vigselplats", "pehrsdotter"
+];
+
+const HOCKEY_TERMS = [
+  "hockey", "ice hockey", "bchl", "brooks bandits", "bandits",
+  "defenceman", "defenseman", "defender", "roster", "lineup",
+  "training camp", "camp", "preseason", "exhibition", "regular season",
+  "transaction", "transactions", "signing", "signed", "commit",
+  "preview", "game preview", "recap", "box score", "power play",
+  "penalty kill", "goal", "assist", "points", "shift", "junior hockey",
+  "eliteprospects", "flohockey"
+];
+
+const PLAYER_TERMS = [
+  "måns ågren", "mans agren", "måns agren", "mans ågren"
+];
+
+const TEAM_TERMS = [
+  "brooks bandits", "brooks bandit", "bandits"
+];
+
+const LEAGUE_TERMS = [
+  "bchl", "british columbia hockey league"
+];
+
+function containsAny(text, terms) {
+  return terms.some(term => text.includes(normalizeText(term)));
+}
+
+function parseDate(value) {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function recencyInfo(item) {
+  const date = parseDate(item.published_at || item.publishedAt || item.date);
+  if (!date) {
+    return { label: "unknown", days: null, bonus: 0 };
   }
 
-  return source === "news" ? "article" : "web";
-}
+  const now = Date.now();
+  const days = Math.max(0, Math.floor((now - date.getTime()) / 86400000));
 
-function normalizedText(value) {
-  return String(value || "")
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/\p{Diacritic}/gu, "")
-    .replace(/[^\p{L}\p{N}]+/gu, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+  if (days <= 7) return { label: "fresh", days, bonus: 14 };
+  if (days <= 30) return { label: "fresh", days, bonus: 10 };
+  if (days <= 90) return { label: "recent", days, bonus: 5 };
+  if (days <= 180) return { label: "recent", days, bonus: 1 };
+  if (days <= 365) return { label: "archive", days, bonus: -6 };
+  return { label: "archive", days, bonus: -12 };
 }
-
-function includesAny(text, terms) {
-  return terms.some(term => text.includes(term));
-}
-
-function countHits(text, terms) {
-  return terms.reduce(
-    (n, term) => n + (text.includes(term) ? 1 : 0),
-    0
-  );
-}
-
-/*
- * ============================================================
- * E30.8.6 MEDIA INTELLIGENCE
- * ============================================================
- *
- * Klassificering:
- *
- * player       = specifik träff om Måns
- * team         = Brooks Bandits
- * league       = BCHL
- * hockey       = allmän relevant hockey
- * wrong_person = fel Måns Ågren / släktforskning
- * other        = övrigt
- *
- * Samma motor används för:
- * - relevanspoäng
- * - automatisk cleanup
- * - Media Intelligence-filter
- * - kontroll efter full scrape
- * ============================================================
- */
 
 function relevanceBreakdown(item) {
-  const title = normalizedText(item.title);
-  const snippet = normalizedText(item.snippet);
-  const content = `${title} ${snippet}`.trim();
-  const host = normalizedText(hostname(item.url));
+  const title = normalizeText(item.title);
+  const snippet = normalizeText(item.snippet);
+  const content = normalizeText(item.content);
+  const query = normalizeText(item.search_query);
+  const host = hostname(item.url).toLowerCase();
+  const text = `${title} ${snippet} ${content} ${query} ${host}`;
 
-  const player = "mans agren";
+  const player = containsAny(text, PLAYER_TERMS);
+  const team = containsAny(text, TEAM_TERMS);
+  const league = containsAny(text, LEAGUE_TERMS);
+  const hockey = containsAny(text, HOCKEY_TERMS);
 
-  const playerInTitle = title.includes(player);
-  const playerInSnippet = snippet.includes(player);
-  const hasPlayer = playerInTitle || playerInSnippet;
+  const blockedHost = BLOCKED_HOSTS.some(h => host === h || host.endsWith(`.${h}`));
+  const wrongTerms = containsAny(text, WRONG_PERSON_TERMS);
 
-  const hockeyTerms = [
-    "hockey",
-    "bchl",
-    "brooks bandits",
-    "bandits",
-    "defenseman",
-    "defenceman",
-    "defender",
-    "back",
-    "bjorkloven",
-    "boden",
-    "u20",
-    "j20",
-    "junior",
-    "eliteprospects",
-    "flohockey",
-    "roster",
-    "game",
-    "match",
-    "playoffs",
-    "exhibition",
-    "regular season",
-    "goalie",
-    "forward",
-    "coach"
-  ];
-
-  const strongPlayerTerms = [
-    "brooks bandits",
-    "bchl",
-    "defenseman",
-    "defenceman",
-    "bjorkloven",
-    "boden",
-    "u20",
-    "j20",
-    "eliteprospects",
-    "flohockey"
-  ];
-
-  const trustedHosts = [
-    "bchl ca",
-    "eliteprospects com",
-    "flohockey tv",
-    "brooksbandits ca",
-    "hockeycanada ca"
-  ];
-
-  const genealogyTerms = [
-    "slakthistoria",
-    "slakt",
-    "genealogy",
-    "ancestry",
-    "family tree",
-    "family history",
-    "historiska poster",
-    "historical records",
-    "church records",
-    "birth records",
-    "marriage records",
-    "death records",
-    "cemetery",
-    "myheritage"
-  ];
-
-  const historicalPatterns = [
-    /\bfodd(?:es)?\s+(?:ar\s+)?1[5-8]\d{2}\b/,
-    /\bborn\s+(?:in\s+)?1[5-8]\d{2}\b/,
-    /\b1[5-8]\d{2}\s*[-–]\s*1[5-8]\d{2}\b/
-  ];
-
-  const hasBrooks = content.includes("brooks bandits");
-  const hasBchl = content.includes("bchl");
-
-  const hockeyHits = countHits(
-    content,
-    hockeyTerms
-  );
-
-  const strongHits = countHits(
-    content,
-    strongPlayerTerms
-  );
-
-  const trustedHost = trustedHosts.some(
-    h => host.includes(h)
-  );
-
-  const genealogy =
-    includesAny(content, genealogyTerms) ||
-    historicalPatterns.some(re => re.test(content));
-
-  const social = item.source_type === "social";
-
+  const reasons = [];
   let score = 0;
   let category = "other";
-  const reasons = [];
+  let autoIrrelevant = false;
 
-  /*
-   * HÅRD SPÄRR
-   *
-   * MyHeritage, släktforskning och historiska namnar
-   * får aldrig klassas som hockeyspelaren Måns.
-   */
-  if (genealogy) {
-    reasons.push(
-      "Släktforskning/historisk namne – inte hockeyspelaren."
-    );
-
+  if (blockedHost || wrongTerms) {
+    score = 0;
+    category = "wrong_person";
+    autoIrrelevant = true;
+    reasons.push(blockedHost ? "blocked genealogy source" : "wrong-person/genealogy terms");
     return {
-      score: 0,
-      category: "wrong_person",
+      score,
+      category,
       reasons,
-      autoIrrelevant: true
+      autoIrrelevant,
+      recency: recencyInfo(item)
     };
   }
 
-  /*
-   * DIREKT MÅNS-TRÄFF
-   */
-  if (hasPlayer) {
+  // Måns is the primary signal.
+  if (player) {
     category = "player";
-
-    if (playerInTitle) {
-      score += 55;
-
-      reasons.push(
-        "Måns Ågren finns i titeln."
-      );
-    } else {
-      score += 25;
-
-      reasons.push(
-        "Måns Ågren finns endast i beskrivning/snippet."
-      );
-    }
-
-    if (strongHits >= 3) {
-      score += 35;
-    } else if (strongHits === 2) {
-      score += 28;
-    } else if (strongHits === 1) {
-      score += 16;
-    }
-
-    if (hasBrooks) {
-      score += 15;
-
-      reasons.push(
-        "Brooks Bandits-kontext."
-      );
-    }
-
-    if (hasBchl) {
-      score += 8;
-
-      reasons.push(
-        "BCHL-kontext."
-      );
-    }
-
-    if (trustedHost) {
-      score += 5;
-    }
-
-    /*
-     * Namnet Måns Ågren ensamt räcker inte.
-     */
-    if (hockeyHits === 0) {
-      score = Math.min(score, 25);
-
-      reasons.push(
-        "Ingen verifierbar hockeykontext."
-      );
-    }
-
-    /*
-     * Sociala sökresultat kan få sökorden
-     * insprängda i snippets trots att inlägget
-     * egentligen handlar om någon annan.
-     */
-    if (social && !playerInTitle) {
-      score = Math.min(
-        score,
-        strongHits === 0 ? 30 : 68
-      );
-
-      reasons.push(
-        "Social träff utan Måns i titeln – nedviktad."
-      );
-    }
-  }
-
-  /*
-   * BROOKS BANDITS UTAN MÅNS
-   */
-  else if (hasBrooks) {
-    category = "team";
-    score = 48;
-
-    if (hasBchl) {
+    score = 78;
+    reasons.push("Måns Ågren");
+    if (hockey) {
       score += 12;
+      reasons.push("hockey context");
     }
-
-    if (hockeyHits >= 3) {
-      score += 10;
-    } else if (hockeyHits >= 1) {
-      score += 5;
+    if (team) {
+      score += 7;
+      reasons.push("Brooks Bandits");
     }
-
-    if (trustedHost) {
-      score += 5;
+    if (league) {
+      score += 3;
+      reasons.push("BCHL");
     }
-
-    score = Math.min(
-      score,
-      social ? 65 : 78
-    );
-
-    reasons.push(
-      "Brooks Bandits-lagbevakning utan Måns."
-    );
-  }
-
-  /*
-   * BCHL UTAN MÅNS/BROOKS
-   */
-  else if (
-    hasBchl &&
-    hockeyHits >= 2
-  ) {
+  } else if (team) {
+    category = "team";
+    score = 62;
+    reasons.push("Brooks Bandits");
+    if (league) {
+      score += 6;
+      reasons.push("BCHL");
+    }
+    if (hockey) {
+      score += 4;
+      reasons.push("hockey context");
+    }
+  } else if (league) {
     category = "league";
-
-    score = trustedHost
-      ? 45
-      : 32;
-
-    reasons.push(
-      "BCHL-träff utan direkt koppling till Måns."
-    );
-  }
-
-  /*
-   * ALLMÄN HOCKEY
-   */
-  else if (
-    trustedHost &&
-    hockeyHits >= 3
-  ) {
+    score = 50;
+    reasons.push("BCHL");
+    if (hockey) {
+      score += 4;
+      reasons.push("hockey context");
+    }
+  } else if (hockey) {
     category = "hockey";
-    score = 35;
-
-    reasons.push(
-      "Allmän hockeyträff från betrodd källa."
-    );
+    score = 42;
+    reasons.push("general hockey");
   }
 
-  score = Math.max(
-    0,
-    Math.min(
-      100,
-      Math.round(score)
-    )
-  );
+  // Strong title weighting.
+  if (containsAny(title, PLAYER_TERMS)) {
+    score += 8;
+    reasons.push("Måns in title");
+  } else if (containsAny(title, TEAM_TERMS)) {
+    score += 4;
+    reasons.push("Brooks in title");
+  }
+
+  // Trusted hockey sources get a small boost, never enough to turn irrelevant content relevant.
+  if (
+    host.includes("bchl.ca") ||
+    host.includes("brooksbandits.ca") ||
+    host.includes("eliteprospects.com") ||
+    host.includes("flohockey.tv")
+  ) {
+    score += 3;
+    reasons.push("trusted hockey source");
+  }
+
+  const recency = recencyInfo(item);
+  score += recency.bonus;
+  if (recency.label !== "unknown") {
+    reasons.push(`recency:${recency.label}`);
+  }
+
+  // General Brooks/BCHL archive material should not outrank current Måns material.
+  if (!player && recency.label === "archive") {
+    score -= 5;
+    reasons.push("old non-player item");
+  }
+
+  score = Math.max(0, Math.min(100, Math.round(score)));
+
+  if (score < 45) autoIrrelevant = true;
 
   return {
     score,
     category,
     reasons,
-    autoIrrelevant: score < 30
+    autoIrrelevant,
+    recency
   };
 }
 
 function relevance(item) {
   return relevanceBreakdown(item).score;
-}async function firecrawlSearch(
-  apiKey,
-  query,
-  includeContent = false
-) {
+}
+
+async function firecrawlSearch(apiKey, query, includeContent = false) {
   const body = {
     query,
     limit: 10,
-
-    sources: [
-      { type: "web" },
-      { type: "news" }
-    ],
-
+    sources: [{ type: "web" }, { type: "news" }],
     country: "SE",
     location: "Sweden",
     timeout: 60000,
@@ -430,475 +296,196 @@ function relevance(item) {
 
   if (includeContent) {
     body.scrapeOptions = {
-      formats: [
-        { type: "markdown" }
-      ],
+      formats: [{ type: "markdown" }],
       onlyMainContent: true
     };
   }
 
-  const response = await fetch(
-    "https://api.firecrawl.dev/v2/search",
-    {
-      method: "POST",
-
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json"
-      },
-
-      body: JSON.stringify(body)
-    }
-  );
+  const response = await fetch("https://api.firecrawl.dev/v2/search", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(body)
+  });
 
   if (!response.ok) {
-    throw new Error(
-      `Firecrawl Search svarade med ${response.status}: ${await response.text()}`
-    );
+    throw new Error(`Firecrawl Search svarade med ${response.status}: ${await response.text()}`);
   }
 
   const data = await response.json();
+  if (!data.success) throw new Error(data.error || "Firecrawl Search misslyckades.");
 
-  if (!data.success) {
-    throw new Error(
-      data.error ||
-      "Firecrawl Search misslyckades."
-    );
-  }
-
-  const web = (
-    data.data?.web || []
-  ).map(item => ({
-    title: clean(
-      item.title ||
-      item.metadata?.title ||
-      "Namnlös träff"
-    ),
-
-    snippet: clean(
-      item.description ||
-      item.metadata?.description ||
-      item.markdown?.slice(0, 700) ||
-      ""
-    ),
-
-    content: clean(
-      item.markdown || ""
-    ),
-
-    url: normalizeUrl(
-      item.url ||
-      item.metadata?.sourceURL ||
-      item.metadata?.url ||
-      ""
-    ),
-
-    source_name: hostname(
-      item.url ||
-      item.metadata?.sourceURL ||
-      ""
-    ),
-
-    source_type: sourceType(
-      item.url ||
-      item.metadata?.sourceURL ||
-      "",
-      "web"
-    ),
-
-    published_at:
-      clean(
-        item.metadata?.publishedTime ||
-        item.metadata?.modifiedTime ||
-        ""
-      ) || null,
-
+  const web = (data.data?.web || []).map(item => ({
+    title: clean(item.title || item.metadata?.title || "Namnlös träff"),
+    snippet: clean(item.description || item.metadata?.description || item.markdown?.slice(0, 700) || ""),
+    content: clean(item.markdown || ""),
+    url: normalizeUrl(item.url || item.metadata?.sourceURL || item.metadata?.url || ""),
+    source_name: hostname(item.url || item.metadata?.sourceURL || ""),
+    source_type: sourceType(item.url || item.metadata?.sourceURL || "", "web"),
+    published_at: clean(item.metadata?.publishedTime || item.metadata?.modifiedTime || "") || null,
     search_query: query
   }));
 
-
-  const news = (
-    data.data?.news || []
-  ).map(item => ({
-    title: clean(
-      item.title ||
-      item.metadata?.title ||
-      "Namnlös träff"
-    ),
-
-    snippet: clean(
-      item.snippet ||
-      item.metadata?.description ||
-      item.markdown?.slice(0, 700) ||
-      ""
-    ),
-
-    content: clean(
-      item.markdown || ""
-    ),
-
-    url: normalizeUrl(
-      item.url ||
-      item.metadata?.sourceURL ||
-      item.metadata?.url ||
-      ""
-    ),
-
-    source_name: hostname(
-      item.url ||
-      item.metadata?.sourceURL ||
-      ""
-    ),
-
-    source_type: sourceType(
-      item.url ||
-      item.metadata?.sourceURL ||
-      "",
-      "news"
-    ),
-
-    published_at:
-      clean(
-        item.date ||
-        item.metadata?.publishedTime ||
-        ""
-      ) || null,
-
+  const news = (data.data?.news || []).map(item => ({
+    title: clean(item.title || item.metadata?.title || "Namnlös träff"),
+    snippet: clean(item.snippet || item.metadata?.description || item.markdown?.slice(0, 700) || ""),
+    content: clean(item.markdown || ""),
+    url: normalizeUrl(item.url || item.metadata?.sourceURL || item.metadata?.url || ""),
+    source_name: hostname(item.url || item.metadata?.sourceURL || ""),
+    source_type: sourceType(item.url || item.metadata?.sourceURL || "", "news"),
+    published_at: clean(item.date || item.metadata?.publishedTime || "") || null,
     search_query: query
   }));
-
 
   return {
-    results: [
-      ...news,
-      ...web
-    ],
-
-    creditsUsed:
-      Number(
-        data.creditsUsed || 0
-      ),
-
-    warning:
-      data.warning || null
+    results: [...news, ...web],
+    creditsUsed: Number(data.creditsUsed || 0),
+    warning: data.warning || null
   };
 }
 
-
-async function firecrawlScrape(
-  apiKey,
-  url
-) {
-  const response = await fetch(
-    "https://api.firecrawl.dev/v2/scrape",
-    {
-      method: "POST",
-
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json"
-      },
-
-      body: JSON.stringify({
-        url,
-
-        formats: [
-          { type: "markdown" }
-        ],
-
-        onlyMainContent: true,
-        timeout: 60000
-      })
-    }
-  );
+async function firecrawlScrape(apiKey, url) {
+  const response = await fetch("https://api.firecrawl.dev/v2/scrape", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      url,
+      formats: [{ type: "markdown" }],
+      onlyMainContent: true,
+      timeout: 60000
+    })
+  });
 
   if (!response.ok) {
-    throw new Error(
-      `Firecrawl Scrape svarade med ${response.status}: ${await response.text()}`
-    );
+    throw new Error(`Firecrawl Scrape svarade med ${response.status}: ${await response.text()}`);
   }
 
   const data = await response.json();
-
-  if (!data.success) {
-    throw new Error(
-      data.error ||
-      "Firecrawl Scrape misslyckades."
-    );
-  }
+  if (!data.success) throw new Error(data.error || "Firecrawl Scrape misslyckades.");
 
   return {
-    markdown: clean(
-      data.data?.markdown || ""
-    ),
-
-    metadata:
-      data.data?.metadata || {}
+    markdown: clean(data.data?.markdown || ""),
+    metadata: data.data?.metadata || {}
   };
 }
 
+async function upsertItem(db, item) {
+  const rel = relevanceBreakdown(item);
 
-async function upsertItem(
-  db,
-  item
-) {
-  const rel =
-    relevanceBreakdown(item);
-
-  const score =
-    rel.score;
-
-  /*
-   * Träffar under 50 sparas inte som nya.
-   * Fel person/släktforskning stoppas helt.
-   */
+  // Block known wrong-person sources before D1.
   if (
     !item.url ||
     !item.title ||
-    score < 50 ||
-    rel.category === "wrong_person"
-  ) {
-    return false;
-  }
+    rel.category === "wrong_person" ||
+    rel.autoIrrelevant ||
+    rel.score < 50
+  ) return false;
 
-  const result =
-    await db.prepare(`
-      INSERT INTO mans_media_watch (
-        external_id,
-        title,
-        source_name,
-        source_type,
-        url,
-        published_at,
-        snippet,
-        search_query,
-        relevance_score,
-        status,
-        updated_at
-      )
+  const result = await db.prepare(`
+    INSERT INTO mans_media_watch (
+      external_id, title, source_name, source_type, url, published_at,
+      snippet, search_query, relevance_score, status, updated_at
+    )
+    VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, 'new', CURRENT_TIMESTAMP)
+    ON CONFLICT(url) DO UPDATE SET
+      title = excluded.title,
+      source_name = excluded.source_name,
+      source_type = excluded.source_type,
+      published_at = COALESCE(excluded.published_at, mans_media_watch.published_at),
+      snippet = excluded.snippet,
+      search_query = excluded.search_query,
+      relevance_score =
+        CASE WHEN mans_media_watch.status = 'approved'
+          THEN mans_media_watch.relevance_score
+          ELSE excluded.relevance_score
+        END,
+      status =
+        CASE WHEN mans_media_watch.status = 'approved'
+          THEN 'approved'
+          ELSE mans_media_watch.status
+        END,
+      updated_at = CURRENT_TIMESTAMP
+  `).bind(
+    item.title,
+    item.source_name || "",
+    item.source_type || "web",
+    item.url,
+    item.published_at || null,
+    item.snippet || "",
+    item.search_query || "",
+    rel.score
+  ).run();
 
-      VALUES (
-        NULL,
-        ?, ?, ?, ?, ?, ?, ?, ?,
-        'new',
-        CURRENT_TIMESTAMP
-      )
-
-      ON CONFLICT(url) DO UPDATE SET
-
-        title =
-          excluded.title,
-
-        source_name =
-          excluded.source_name,
-
-        source_type =
-          excluded.source_type,
-
-        published_at =
-          COALESCE(
-            excluded.published_at,
-            mans_media_watch.published_at
-          ),
-
-        snippet =
-          excluded.snippet,
-
-        search_query =
-          excluded.search_query,
-
-        relevance_score =
-          CASE
-            WHEN mans_media_watch.status = 'approved'
-              THEN mans_media_watch.relevance_score
-            ELSE excluded.relevance_score
-          END,
-
-        status =
-          CASE
-            WHEN mans_media_watch.status = 'approved'
-              THEN 'approved'
-            ELSE mans_media_watch.status
-          END,
-
-        updated_at =
-          CURRENT_TIMESTAMP
-    `)
-      .bind(
-        item.title,
-        item.source_name || "",
-        item.source_type || "web",
-        item.url,
-        item.published_at || null,
-        item.snippet || "",
-        item.search_query || "",
-        score
-      )
-      .run();
-
-  return Number(
-    result.meta?.changes || 0
-  ) > 0;
+  return Number(result.meta?.changes || 0) > 0;
 }
 
-
-/*
- * ============================================================
- * CLEANUP
- * ============================================================
- *
- * Räknar om befintlig Media Watch-data.
- *
- * Manuellt GODKÄNDA poster skyddas.
- */
 async function cleanupExisting(db) {
-  const rows = (
-    await db.prepare(`
-      SELECT
-        id,
-        title,
-        source_name,
-        source_type,
-        url,
-        snippet,
-        search_query,
-        relevance_score,
-        status
-
-      FROM mans_media_watch
-
-      ORDER BY id
-    `).all()
-  ).results || [];
+  const rows = (await db.prepare(`
+    SELECT id, title, source_name, source_type, url, published_at,
+           snippet, search_query, relevance_score, status
+    FROM mans_media_watch
+    ORDER BY id
+  `).all()).results || [];
 
   let scanned = 0;
   let rescored = 0;
   let autoIrrelevant = 0;
   let approvedProtected = 0;
   let unchanged = 0;
-
   const examples = [];
 
   for (const row of rows) {
     scanned += 1;
 
-    /*
-     * Manuellt godkända poster ändras inte.
-     */
-    if (
-      row.status ===
-      "approved"
-    ) {
+    if (row.status === "approved") {
       approvedProtected += 1;
       continue;
     }
 
-    const rel =
-      relevanceBreakdown(row);
+    const rel = relevanceBreakdown(row);
+    let nextStatus = row.status;
 
-    let nextStatus =
-      row.status;
-
-    if (
-      rel.autoIrrelevant ||
-      rel.category ===
-        "wrong_person"
-    ) {
-      nextStatus =
-        "irrelevant";
+    if (rel.autoIrrelevant || rel.category === "wrong_person") {
+      nextStatus = "irrelevant";
     }
 
-    const oldScore =
-      Number(
-        row.relevance_score || 0
-      );
+    const oldScore = Number(row.relevance_score || 0);
+    const scoreChanged = oldScore !== rel.score;
+    const statusChanged = String(row.status || "") !== String(nextStatus || "");
 
-    const scoreChanged =
-      oldScore !==
-      rel.score;
-
-    const statusChanged =
-      String(
-        row.status || ""
-      ) !==
-      String(
-        nextStatus || ""
-      );
-
-    if (
-      !scoreChanged &&
-      !statusChanged
-    ) {
+    if (!scoreChanged && !statusChanged) {
       unchanged += 1;
       continue;
     }
 
     await db.prepare(`
       UPDATE mans_media_watch
-
-      SET
-        relevance_score = ?,
-        status = ?,
-        updated_at =
-          CURRENT_TIMESTAMP
-
+      SET relevance_score = ?, status = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
-    `)
-      .bind(
-        rel.score,
-        nextStatus,
-        row.id
-      )
-      .run();
+    `).bind(rel.score, nextStatus, row.id).run();
 
+    if (scoreChanged) rescored += 1;
+    if (statusChanged && nextStatus === "irrelevant") autoIrrelevant += 1;
 
-    if (
-      scoreChanged
-    ) {
-      rescored += 1;
-    }
-
-
-    if (
-      statusChanged &&
-      nextStatus ===
-        "irrelevant"
-    ) {
-      autoIrrelevant += 1;
-    }
-
-
-    if (
-      examples.length < 20
-    ) {
+    if (examples.length < 20) {
       examples.push({
-        id:
-          row.id,
-
-        title:
-          row.title,
-
-        old_score:
-          oldScore,
-
-        new_score:
-          rel.score,
-
-        old_status:
-          row.status,
-
-        new_status:
-          nextStatus,
-
-        category:
-          rel.category,
-
-        reasons:
-          rel.reasons
+        id: row.id,
+        title: row.title,
+        old_score: oldScore,
+        new_score: rel.score,
+        old_status: row.status,
+        new_status: nextStatus,
+        category: rel.category,
+        recency: rel.recency,
+        reasons: rel.reasons
       });
     }
   }
-
 
   return {
     scanned,
@@ -910,400 +497,169 @@ async function cleanupExisting(db) {
   };
 }
 
+async function listItems(db, url) {
+  const status = url.searchParams.get("status");
+  const type = url.searchParams.get("type");
+  const category = clean(url.searchParams.get("category"));
+  const freshness = clean(url.searchParams.get("freshness"));
 
-/*
- * ============================================================
- * LIST ITEMS + E30.8.6 CLASSIFICATION
- * ============================================================
- */
-
-async function listItems(
-  db,
-  url
-) {
-  const status =
-    url.searchParams.get(
-      "status"
-    );
-
-  const type =
-    url.searchParams.get(
-      "type"
-    );
-
-  /*
-   * E30.8.6
-   *
-   * category kan vara:
-   * player / team / league / hockey / wrong_person / other
-   */
-  const category =
-    clean(
-      url.searchParams.get(
-        "category"
-      )
-    );
-
-  const limit =
-    Math.min(
-      200,
-      Math.max(
-        1,
-        Number(
-          url.searchParams.get(
-            "limit"
-          ) || 100
-        )
-      )
-    );
-
+  const limit = Math.min(
+    200,
+    Math.max(1, Number(url.searchParams.get("limit") || 100))
+  );
 
   const conditions = [];
   const values = [];
 
-
   if (status) {
-    conditions.push(
-      "status = ?"
-    );
-
-    values.push(
-      status
-    );
+    conditions.push("status = ?");
+    values.push(status);
   }
-
 
   if (type) {
-    conditions.push(
-      "source_type = ?"
-    );
-
-    values.push(
-      type
-    );
+    conditions.push("source_type = ?");
+    values.push(type);
   }
 
+  const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
 
-  const where =
-    conditions.length
-      ? `WHERE ${conditions.join(" AND ")}`
-      : "";
+  const statement = db.prepare(`
+    SELECT *
+    FROM mans_media_watch
+    ${where}
+    ORDER BY
+      CASE status
+        WHEN 'new' THEN 0
+        WHEN 'approved' THEN 1
+        WHEN 'irrelevant' THEN 2
+        ELSE 3
+      END,
+      relevance_score DESC,
+      COALESCE(published_at, created_at) DESC,
+      id DESC
+    LIMIT ?
+  `);
 
+  const result = values.length
+    ? await statement.bind(...values, limit).all()
+    : await statement.bind(limit).all();
 
-  const statement =
-    db.prepare(`
-      SELECT *
+  const classifiedItems = (result.results || []).map(item => {
+    const intelligence = relevanceBreakdown(item);
+    return {
+      ...item,
+      intelligence_category: intelligence.category,
+      intelligence_reasons: intelligence.reasons,
+      auto_irrelevant: intelligence.autoIrrelevant,
+      freshness: intelligence.recency.label,
+      age_days: intelligence.recency.days,
+      calculated_relevance: intelligence.score
+    };
+  });
 
-      FROM mans_media_watch
+  const filteredItems = classifiedItems.filter(item => {
+    if (category && item.intelligence_category !== category) return false;
+    if (freshness && item.freshness !== freshness) return false;
+    return true;
+  });
 
-      ${where}
+  const intelligenceSummary = classifiedItems.reduce((acc, item) => {
+    const key = item.intelligence_category || "other";
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {
+    player: 0,
+    team: 0,
+    league: 0,
+    hockey: 0,
+    wrong_person: 0,
+    other: 0
+  });
 
-      ORDER BY
+  const freshnessSummary = classifiedItems.reduce((acc, item) => {
+    const key = item.freshness || "unknown";
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {
+    fresh: 0,
+    recent: 0,
+    archive: 0,
+    unknown: 0
+  });
 
-        CASE status
-          WHEN 'new'
-            THEN 0
-
-          WHEN 'approved'
-            THEN 1
-
-          WHEN 'irrelevant'
-            THEN 2
-
-          ELSE 3
-        END,
-
-        relevance_score DESC,
-
-        COALESCE(
-          published_at,
-          created_at
-        ) DESC,
-
-        id DESC
-
-      LIMIT ?
-    `);
-
-
-  const result =
-    values.length
-
-      ? await statement
-          .bind(
-            ...values,
-            limit
-          )
-          .all()
-
-      : await statement
-          .bind(
-            limit
-          )
-          .all();
-
-
-  /*
-   * E30.8.6:
-   * klassificeringen beräknas dynamiskt,
-   * så ingen D1-migration behövs.
-   */
-  const classifiedItems =
-    (
-      result.results || []
-    ).map(item => {
-
-      const intelligence =
-        relevanceBreakdown(
-          item
-        );
-
-      return {
-        ...item,
-
-        intelligence_category:
-          intelligence.category,
-
-        intelligence_reasons:
-          intelligence.reasons,
-
-        auto_irrelevant:
-          intelligence.autoIrrelevant
-      };
-    });
-
-
-  const filteredItems =
-    category
-
-      ? classifiedItems.filter(
-          item =>
-            item.intelligence_category ===
-            category
-        )
-
-      : classifiedItems;
-
-
-  /*
-   * Summering per Intelligence-kategori.
-   */
-  const intelligenceSummary =
-    classifiedItems.reduce(
-      (acc, item) => {
-
-        const key =
-          item.intelligence_category ||
-          "other";
-
-        acc[key] =
-          (acc[key] || 0) + 1;
-
-        return acc;
-      },
-
-      {
-        player: 0,
-        team: 0,
-        league: 0,
-        hockey: 0,
-        wrong_person: 0,
-        other: 0
-      }
-    );
-
-
-  const summary =
-    await db.prepare(`
-      SELECT
-
-        COUNT(*) AS total,
-
-        SUM(
-          CASE
-            WHEN status = 'new'
-              THEN 1
-            ELSE 0
-          END
-        ) AS new_items,
-
-        SUM(
-          CASE
-            WHEN status = 'approved'
-              THEN 1
-            ELSE 0
-          END
-        ) AS approved,
-
-        SUM(
-          CASE
-            WHEN status = 'irrelevant'
-              THEN 1
-            ELSE 0
-          END
-        ) AS irrelevant,
-
-        SUM(
-          CASE
-            WHEN source_type = 'article'
-              THEN 1
-            ELSE 0
-          END
-        ) AS articles,
-
-        SUM(
-          CASE
-            WHEN source_type = 'social'
-              THEN 1
-            ELSE 0
-          END
-        ) AS social,
-
-        SUM(
-          CASE
-            WHEN source_type = 'video'
-              THEN 1
-            ELSE 0
-          END
-        ) AS videos
-
-      FROM mans_media_watch
-    `)
-      .first();
-
+  const summary = await db.prepare(`
+    SELECT
+      COUNT(*) AS total,
+      SUM(CASE WHEN status = 'new' THEN 1 ELSE 0 END) AS new_items,
+      SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END) AS approved,
+      SUM(CASE WHEN status = 'irrelevant' THEN 1 ELSE 0 END) AS irrelevant,
+      SUM(CASE WHEN source_type = 'article' THEN 1 ELSE 0 END) AS articles,
+      SUM(CASE WHEN source_type = 'social' THEN 1 ELSE 0 END) AS social,
+      SUM(CASE WHEN source_type = 'video' THEN 1 ELSE 0 END) AS videos
+    FROM mans_media_watch
+  `).first();
 
   return {
-
-    items:
-      filteredItems,
-
+    items: filteredItems,
     intelligenceSummary,
-
+    freshnessSummary,
     summary: {
-
-      total:
-        Number(
-          summary?.total || 0
-        ),
-
-      newItems:
-        Number(
-          summary?.new_items || 0
-        ),
-
-      approved:
-        Number(
-          summary?.approved || 0
-        ),
-
-      irrelevant:
-        Number(
-          summary?.irrelevant || 0
-        ),
-
-      articles:
-        Number(
-          summary?.articles || 0
-        ),
-
-      social:
-        Number(
-          summary?.social || 0
-        ),
-
-      videos:
-        Number(
-          summary?.videos || 0
-        )
+      total: Number(summary?.total || 0),
+      newItems: Number(summary?.new_items || 0),
+      approved: Number(summary?.approved || 0),
+      irrelevant: Number(summary?.irrelevant || 0),
+      articles: Number(summary?.articles || 0),
+      social: Number(summary?.social || 0),
+      videos: Number(summary?.videos || 0)
     }
   };
-}async function runSearch(
-  db,
-  apiKey,
-  customQueries,
-  includeContent
-) {
-  /*
-   * Varje Måns-fråga innehåller hockeykontext
-   * för att minska sammanblandning med namnar.
-   */
-  const queries =
-    customQueries.length
-      ? customQueries
+}
 
-      : [
-          '"Måns Ågren" hockey',
-          '"Mans Agren" hockey',
-          '"Måns Ågren" "Brooks Bandits"',
-          '"Mans Agren" "Brooks Bandits"',
-          '"Måns Ågren" BCHL',
-          '"Mans Agren" BCHL',
-          '"Brooks Bandits" BCHL',
-          '"Brooks Bandits" hockey'
-        ];
+async function runSearch(db, apiKey, customQueries, includeContent) {
+  const queries = customQueries.length
+    ? customQueries
+    : [
+        '"Måns Ågren" hockey',
+        '"Mans Agren" hockey',
+        '"Måns Ågren" "Brooks Bandits"',
+        '"Mans Agren" "Brooks Bandits"',
+        '"Måns Ågren" BCHL',
+        '"Mans Agren" BCHL',
+        '"Måns Ågren" roster OR lineup OR camp OR transaction OR signing',
+        '"Mans Agren" roster OR lineup OR camp OR transaction OR signing',
+        '"Brooks Bandits" roster OR lineup OR camp OR preseason',
+        '"Brooks Bandits" BCHL preview OR recap OR transaction'
+      ];
 
   const found = [];
   const errors = [];
-
   let creditsUsed = 0;
 
-  for (
-    const query
-    of queries.slice(0, 8)
-  ) {
+  for (const query of queries.slice(0, 10)) {
     try {
-      const response =
-        await firecrawlSearch(
-          apiKey,
-          query,
-          includeContent
-        );
-
-      found.push(
-        ...response.results
-      );
-
-      creditsUsed +=
-        response.creditsUsed;
-
+      const response = await firecrawlSearch(apiKey, query, includeContent);
+      found.push(...response.results);
+      creditsUsed += response.creditsUsed;
     } catch (error) {
-      errors.push({
-        query,
-        error:
-          error.message
-      });
+      errors.push({ query, error: error.message });
     }
   }
 
-
-  /*
-   * Deduplicering per URL.
-   * Vid dublett behålls den variant
-   * som får högst relevans.
-   */
-  const unique =
-    new Map();
+  const unique = new Map();
 
   for (const item of found) {
-    if (!item.url) {
+    if (!item.url) continue;
+
+    const host = hostname(item.url).toLowerCase();
+    if (BLOCKED_HOSTS.some(h => host === h || host.endsWith(`.${h}`))) {
       continue;
     }
 
-    const previous =
-      unique.get(item.url);
-
-    if (
-      !previous ||
-      relevance(item) >
-      relevance(previous)
-    ) {
-      unique.set(
-        item.url,
-        item
-      );
+    const previous = unique.get(item.url);
+    if (!previous || relevance(item) > relevance(previous)) {
+      unique.set(item.url, item);
     }
   }
-
 
   let saved = 0;
   let playerHits = 0;
@@ -1316,775 +672,303 @@ async function listItems(
   const acceptedExamples = [];
   const rejectedExamples = [];
 
+  for (const item of unique.values()) {
+    const rel = relevanceBreakdown(item);
 
-  for (
-    const item
-    of unique.values()
-  ) {
-    const rel =
-      relevanceBreakdown(item);
-
-    /*
-     * Fel person / släktforskning
-     */
-    if (
-      rel.category ===
-      "wrong_person"
-    ) {
+    if (rel.category === "wrong_person") {
       wrongPerson += 1;
       rejected += 1;
-
-      if (
-        rejectedExamples.length <
-        15
-      ) {
+      if (rejectedExamples.length < 15) {
         rejectedExamples.push({
-          title:
-            item.title,
-
-          url:
-            item.url,
-
-          score:
-            rel.score,
-
-          category:
-            rel.category,
-
-          reasons:
-            rel.reasons
+          title: item.title,
+          url: item.url,
+          score: rel.score,
+          category: rel.category,
+          recency: rel.recency,
+          reasons: rel.reasons
         });
       }
-
       continue;
     }
 
-
-    /*
-     * Inga nya poster under 50 lagras.
-     */
-    if (
-      rel.score < 50
-    ) {
+    if (rel.score < 50 || rel.autoIrrelevant) {
       rejected += 1;
-
-      if (
-        rejectedExamples.length <
-        15
-      ) {
+      if (rejectedExamples.length < 15) {
         rejectedExamples.push({
-          title:
-            item.title,
-
-          url:
-            item.url,
-
-          score:
-            rel.score,
-
-          category:
-            rel.category,
-
-          reasons:
-            rel.reasons
+          title: item.title,
+          url: item.url,
+          score: rel.score,
+          category: rel.category,
+          recency: rel.recency,
+          reasons: rel.reasons
         });
       }
-
       continue;
     }
 
+    if (rel.category === "player") playerHits += 1;
+    if (rel.category === "team") teamHits += 1;
+    if (rel.category === "league") leagueHits += 1;
+    if (rel.category === "hockey") hockeyHits += 1;
 
-    if (
-      rel.category ===
-      "player"
-    ) {
-      playerHits += 1;
-    }
-
-
-    if (
-      rel.category ===
-      "team"
-    ) {
-      teamHits += 1;
-    }
-
-
-    if (
-      rel.category ===
-      "league"
-    ) {
-      leagueHits += 1;
-    }
-
-
-    if (
-      rel.category ===
-      "hockey"
-    ) {
-      hockeyHits += 1;
-    }
-
-
-    if (
-      acceptedExamples.length <
-      15
-    ) {
+    if (acceptedExamples.length < 15) {
       acceptedExamples.push({
-        title:
-          item.title,
-
-        url:
-          item.url,
-
-        score:
-          rel.score,
-
-        category:
-          rel.category,
-
-        reasons:
-          rel.reasons
+        title: item.title,
+        url: item.url,
+        score: rel.score,
+        category: rel.category,
+        recency: rel.recency,
+        reasons: rel.reasons
       });
     }
 
-
-    if (
-      await upsertItem(
-        db,
-        item
-      )
-    ) {
-      saved += 1;
-    }
+    if (await upsertItem(db, item)) saved += 1;
   }
 
-
   return {
-    version:
-      "E30.8.6",
-
+    version: VERSION,
     queries,
-
-    found:
-      found.length,
-
-    unique:
-      unique.size,
-
+    found: found.length,
+    unique: unique.size,
     saved,
-
     playerHits,
-
     teamHits,
-
     leagueHits,
-
     hockeyHits,
-
     wrongPerson,
-
     rejected,
-
     creditsUsed,
-
     errors,
-
     acceptedExamples,
-
     rejectedExamples
   };
 }
 
-
-/*
- * ============================================================
- * API
- * ============================================================
- */
-
-export async function onRequest(
-  context
-) {
+export async function onRequest(context) {
   try {
-    const db =
-      context.env.DB;
+    const db = context.env.DB;
 
     if (!db) {
       return json({
         ok: false,
-        module:
-          "MansMediaWatch",
-        version:
-          "E30.8.6",
-        error:
-          "Ingen databasanslutning."
+        module: "MansMediaWatch",
+        version: VERSION,
+        error: "Ingen databasanslutning."
       }, 500);
     }
 
+    const request = context.request;
+    const url = new URL(request.url);
 
-    const request =
-      context.request;
-
-    const url =
-      new URL(
-        request.url
-      );
-
-
-    /*
-     * GET
-     *
-     * Läs Media Watch + klassificering.
-     */
-    if (
-      request.method ===
-      "GET"
-    ) {
+    if (request.method === "GET") {
       return json({
         ok: true,
-
-        module:
-          "MansMediaWatch",
-
-        version:
-          "E30.8.6",
-
-        ...(
-          await listItems(
-            db,
-            url
-          )
-        ),
-
-        timestamp:
-          new Date()
-            .toISOString()
+        module: "MansMediaWatch",
+        version: VERSION,
+        ...(await listItems(db, url)),
+        timestamp: new Date().toISOString()
       });
     }
 
+    if (request.method === "POST") {
+      const body = await readBody(request);
+      const action = body.action || "search";
 
-    /*
-     * POST
-     */
-    if (
-      request.method ===
-      "POST"
-    ) {
-      const body =
-        await readBody(
-          request
+      if (action === "cleanup") {
+        const cleanup = await cleanupExisting(db);
+
+        return json({
+          ok: true,
+          module: "MansMediaWatch",
+          version: VERSION,
+          action: "cleanup",
+          cleanup,
+          ...(await listItems(db, url)),
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      if (action === "search") {
+        if (!context.env.FIRECRAWL_API_KEY) {
+          return json({
+            ok: false,
+            module: "MansMediaWatch",
+            version: VERSION,
+            error: "FIRECRAWL_API_KEY saknas i Cloudflare Secrets."
+          }, 500);
+        }
+
+        const customQueries = Array.isArray(body.queries)
+          ? body.queries.map(clean).filter(Boolean)
+          : [];
+
+        const search = await runSearch(
+          db,
+          context.env.FIRECRAWL_API_KEY,
+          customQueries,
+          Boolean(body.include_content)
         );
 
-      const action =
-        body.action ||
-        "search";
-
-
-      /*
-       * CLEANUP
-       *
-       * Kostar inga Firecrawl credits.
-       */
-      if (
-        action ===
-        "cleanup"
-      ) {
-        const cleanup =
-          await cleanupExisting(
-            db
-          );
-
         return json({
           ok: true,
-
-          module:
-            "MansMediaWatch",
-
-          version:
-            "E30.8.6",
-
-          action:
-            "cleanup",
-
-          cleanup,
-
-          ...(
-            await listItems(
-              db,
-              url
-            )
-          ),
-
-          timestamp:
-            new Date()
-              .toISOString()
-        });
-      }
-
-
-      /*
-       * SEARCH
-       */
-      if (
-        action ===
-        "search"
-      ) {
-        if (
-          !context.env
-            .FIRECRAWL_API_KEY
-        ) {
-          return json({
-            ok: false,
-
-            module:
-              "MansMediaWatch",
-
-            version:
-              "E30.8.6",
-
-            error:
-              "FIRECRAWL_API_KEY saknas i Cloudflare Secrets."
-          }, 500);
-        }
-
-
-        const customQueries =
-          Array.isArray(
-            body.queries
-          )
-            ? body.queries
-                .map(clean)
-                .filter(Boolean)
-
-            : [];
-
-
-        const search =
-          await runSearch(
-            db,
-
-            context.env
-              .FIRECRAWL_API_KEY,
-
-            customQueries,
-
-            Boolean(
-              body.include_content
-            )
-          );
-
-
-        return json({
-          ok: true,
-
-          module:
-            "MansMediaWatch",
-
-          version:
-            "E30.8.6",
-
-          action:
-            "search",
-
+          module: "MansMediaWatch",
+          version: VERSION,
+          action: "search",
           search,
-
-          ...(
-            await listItems(
-              db,
-              url
-            )
-          ),
-
-          timestamp:
-            new Date()
-              .toISOString()
+          ...(await listItems(db, url)),
+          timestamp: new Date().toISOString()
         });
       }
 
-
-      /*
-       * SCRAPE
-       */
-      if (
-        action ===
-        "scrape"
-      ) {
-        if (
-          !context.env
-            .FIRECRAWL_API_KEY
-        ) {
+      if (action === "scrape") {
+        if (!context.env.FIRECRAWL_API_KEY) {
           return json({
             ok: false,
-
-            module:
-              "MansMediaWatch",
-
-            version:
-              "E30.8.6",
-
-            error:
-              "FIRECRAWL_API_KEY saknas i Cloudflare Secrets."
+            module: "MansMediaWatch",
+            version: VERSION,
+            error: "FIRECRAWL_API_KEY saknas i Cloudflare Secrets."
           }, 500);
         }
 
+        const id = Number(body.id);
+        const targetUrl = clean(body.url);
 
-        const id =
-          Number(
-            body.id
-          );
-
-
-        const targetUrl =
-          clean(
-            body.url
-          );
-
-
-        if (
-          !id ||
-          !targetUrl
-        ) {
-          return json({
-            ok: false,
-
-            error:
-              "Id och URL krävs."
-          }, 400);
+        if (!id || !targetUrl) {
+          return json({ ok: false, error: "Id och URL krävs." }, 400);
         }
 
+        const scraped = await firecrawlScrape(
+          context.env.FIRECRAWL_API_KEY,
+          targetUrl
+        );
 
-        const scraped =
-          await firecrawlScrape(
-            context.env
-              .FIRECRAWL_API_KEY,
-
-            targetUrl
-          );
-
-
-        const snippet =
-          scraped.markdown
-            .slice(
-              0,
-              5000
-            );
-
+        const snippet = scraped.markdown.slice(0, 5000);
 
         await db.prepare(`
           UPDATE mans_media_watch
-
           SET
             snippet = ?,
-
-            source_name =
-              COALESCE(
-                NULLIF(
-                  source_name,
-                  ''
-                ),
-                ?
-              ),
-
-            updated_at =
-              CURRENT_TIMESTAMP
-
+            source_name = COALESCE(NULLIF(source_name, ''), ?),
+            updated_at = CURRENT_TIMESTAMP
           WHERE id = ?
-        `)
-          .bind(
-            snippet,
+        `).bind(snippet, hostname(targetUrl), id).run();
 
-            hostname(
-              targetUrl
-            ),
+        const refreshed = await db.prepare(`
+          SELECT id, title, source_name, source_type, url, published_at,
+                 snippet, search_query, relevance_score, status
+          FROM mans_media_watch
+          WHERE id = ?
+          LIMIT 1
+        `).bind(id).first();
 
-            id
-          )
-          .run();
-
-
-        /*
-         * Läs posten igen efter scrape
-         * och kör samma Intelligence-motor.
-         */
-        const refreshed =
-          await db.prepare(`
-            SELECT
-              id,
-              title,
-              source_name,
-              source_type,
-              url,
-              snippet,
-              search_query,
-              relevance_score,
-              status
-
-            FROM mans_media_watch
-
-            WHERE id = ?
-
-            LIMIT 1
-          `)
-            .bind(id)
-            .first();
-
-
-        let relevanceAfterScrape =
-          null;
-
+        let relevanceAfterScrape = null;
 
         if (refreshed) {
-          const rel =
-            relevanceBreakdown(
-              refreshed
-            );
+          const rel = relevanceBreakdown(refreshed);
 
-          relevanceAfterScrape =
-            {
-              score:
-                rel.score,
+          relevanceAfterScrape = {
+            score: rel.score,
+            category: rel.category,
+            reasons: rel.reasons,
+            autoIrrelevant: rel.autoIrrelevant,
+            recency: rel.recency
+          };
 
-              category:
-                rel.category,
-
-              reasons:
-                rel.reasons,
-
-              autoIrrelevant:
-                rel.autoIrrelevant
-            };
-
-
-          /*
-           * Godkända poster skyddas.
-           */
-          if (
-            refreshed.status !==
-            "approved"
-          ) {
-            const nextStatus =
-              rel.autoIrrelevant
-
-                ? "irrelevant"
-
-                : refreshed.status;
-
+          if (refreshed.status !== "approved") {
+            const nextStatus = rel.autoIrrelevant ? "irrelevant" : refreshed.status;
 
             await db.prepare(`
               UPDATE mans_media_watch
-
-              SET
-                relevance_score = ?,
-                status = ?,
-                updated_at =
-                  CURRENT_TIMESTAMP
-
+              SET relevance_score = ?, status = ?, updated_at = CURRENT_TIMESTAMP
               WHERE id = ?
-            `)
-              .bind(
-                rel.score,
-                nextStatus,
-                id
-              )
-              .run();
+            `).bind(rel.score, nextStatus, id).run();
           }
         }
 
-
         return json({
           ok: true,
-
-          module:
-            "MansMediaWatch",
-
-          version:
-            "E30.8.6",
-
-          action:
-            "scrape",
-
+          module: "MansMediaWatch",
+          version: VERSION,
+          action: "scrape",
           id,
-
-          chars:
-            scraped.markdown
-              .length,
-
-          relevance:
-            relevanceAfterScrape,
-
-          content:
-            scraped.markdown
+          chars: scraped.markdown.length,
+          relevance: relevanceAfterScrape,
+          content: scraped.markdown
         });
       }
 
+      if (action === "status") {
+        const id = Number(body.id);
+        const status = clean(body.status);
 
-      /*
-       * STATUS
-       */
-      if (
-        action ===
-        "status"
-      ) {
-        const id =
-          Number(
-            body.id
-          );
-
-
-        const status =
-          clean(
-            body.status
-          );
-
-
-        if (
-          !id ||
-          ![
-            "new",
-            "approved",
-            "irrelevant"
-          ].includes(
-            status
-          )
-        ) {
+        if (!id || !["new", "approved", "irrelevant"].includes(status)) {
           return json({
             ok: false,
-
-            error:
-              "Ogiltigt id eller status."
+            error: "Ogiltigt id eller status."
           }, 400);
         }
 
-
         await db.prepare(`
           UPDATE mans_media_watch
-
-          SET
-            status = ?,
-            updated_at =
-              CURRENT_TIMESTAMP
-
+          SET status = ?, updated_at = CURRENT_TIMESTAMP
           WHERE id = ?
-        `)
-          .bind(
-            status,
-            id
-          )
-          .run();
-
+        `).bind(status, id).run();
 
         return json({
           ok: true,
-
-          module:
-            "MansMediaWatch",
-
-          version:
-            "E30.8.6",
-
-          action:
-            "status",
-
+          module: "MansMediaWatch",
+          version: VERSION,
+          action: "status",
           id,
-
           status
         });
       }
 
-
       return json({
         ok: false,
-
-        module:
-          "MansMediaWatch",
-
-        version:
-          "E30.8.6",
-
-        error:
-          "Okänd action."
+        module: "MansMediaWatch",
+        version: VERSION,
+        error: "Okänd action."
       }, 400);
     }
 
-
-    /*
-     * DELETE
-     */
-    if (
-      request.method ===
-      "DELETE"
-    ) {
-      const id =
-        Number(
-          url.searchParams
-            .get("id")
-        );
-
+    if (request.method === "DELETE") {
+      const id = Number(url.searchParams.get("id"));
 
       if (!id) {
         return json({
           ok: false,
-
-          error:
-            "Träff-id saknas."
+          error: "Träff-id saknas."
         }, 400);
       }
 
-
       await db.prepare(`
-        DELETE FROM
-          mans_media_watch
-
+        DELETE FROM mans_media_watch
         WHERE id = ?
-      `)
-        .bind(id)
-        .run();
-
+      `).bind(id).run();
 
       return json({
         ok: true,
-
-        module:
-          "MansMediaWatch",
-
-        version:
-          "E30.8.6",
-
-        deleted:
-          true,
-
+        module: "MansMediaWatch",
+        version: VERSION,
+        deleted: true,
         id
       });
     }
 
-
     return json({
       ok: false,
-
-      module:
-        "MansMediaWatch",
-
-      version:
-        "E30.8.6",
-
-      error:
-        "Method not allowed"
+      module: "MansMediaWatch",
+      version: VERSION,
+      error: "Method not allowed"
     }, 405);
-
 
   } catch (error) {
     return json({
       ok: false,
-
-      module:
-        "MansMediaWatch",
-
-      version:
-        "E30.8.6",
-
-      error:
-        error.message
+      module: "MansMediaWatch",
+      version: VERSION,
+      error: error.message
     }, 500);
   }
 }
