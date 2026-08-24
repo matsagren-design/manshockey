@@ -1,10 +1,10 @@
 /*
  * MansHockey Enterprise 30
  * Media Intelligence
- * E30.8.9 Context & Freshness Engine
+ * E30.9.0 Media Timeline & Smart Inbox
  */
 
-const VERSION = "E30.8.9";
+const VERSION = "E30.9.0";
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data, null, 2), {
@@ -386,6 +386,129 @@ function relevanceBreakdown(item) {
   };
 }
 
+
+function smartBucket(item) {
+  const rel = relevanceBreakdown(item);
+  const title = normalizeText(item.title);
+  const snippet = normalizeText(item.snippet);
+  const content = normalizeText(item.content);
+  const actualText = `${title} ${snippet} ${content}`.trim();
+
+  const currentHits = countAny(actualText, CURRENT_CONTEXT_TERMS);
+  const historicalHits = countAny(actualText, HISTORICAL_CONTEXT_TERMS);
+  const age = rel.recency?.days;
+
+  if (rel.category === "wrong_person" || rel.autoIrrelevant) {
+    return {
+      bucket: "irrelevant",
+      status: "irrelevant",
+      reason: "irrelevant-or-wrong-person"
+    };
+  }
+
+  if (rel.category === "player") {
+    if (
+      (age !== null && age > 180 && currentHits === 0) ||
+      (historicalHits >= 2 && currentHits === 0)
+    ) {
+      return {
+        bucket: "history",
+        status: "history",
+        reason: "player-history"
+      };
+    }
+
+    if (
+      rel.identity_level === "verified" &&
+      (
+        age === null ||
+        age <= 180 ||
+        currentHits >= 1
+      )
+    ) {
+      return {
+        bucket: "current",
+        status: "new",
+        reason: "verified-current-player"
+      };
+    }
+
+    if (
+      rel.identity_level === "probable" &&
+      (
+        (age !== null && age <= 90) ||
+        currentHits >= 2
+      )
+    ) {
+      return {
+        bucket: "current",
+        status: "new",
+        reason: "probable-current-player"
+      };
+    }
+
+    return {
+      bucket: "history",
+      status: "history",
+      reason: "secondary-player-history"
+    };
+  }
+
+  if (rel.category === "team") {
+    if (
+      (age !== null && age <= 90) ||
+      currentHits >= 2
+    ) {
+      return {
+        bucket: "current",
+        status: "new",
+        reason: "current-team"
+      };
+    }
+
+    return {
+      bucket: "background",
+      status: "background",
+      reason: "team-background"
+    };
+  }
+
+  if (rel.category === "league") {
+    if (
+      rel.score >= 58 &&
+      age !== null &&
+      age <= 30 &&
+      currentHits >= 1
+    ) {
+      return {
+        bucket: "current",
+        status: "new",
+        reason: "fresh-league"
+      };
+    }
+
+    return {
+      bucket: "background",
+      status: "background",
+      reason: "league-background"
+    };
+  }
+
+  if (rel.category === "hockey") {
+    return {
+      bucket: "background",
+      status: "background",
+      reason: "general-hockey-background"
+    };
+  }
+
+  return {
+    bucket: "background",
+    status: "background",
+    reason: "other-background"
+  };
+}
+
 function relevance(item) {
   return relevanceBreakdown(item).score;
 }
@@ -483,13 +606,13 @@ async function firecrawlScrape(apiKey, url) {
 
 async function upsertItem(db, item) {
   const rel = relevanceBreakdown(item);
+  const smart = smartBucket(item);
 
   if (
     !item.url ||
     !item.title ||
     rel.category === "wrong_person" ||
-    rel.autoIrrelevant ||
-    rel.score < 50
+    rel.score < 35
   ) return false;
 
   const result = await db.prepare(`
@@ -497,7 +620,7 @@ async function upsertItem(db, item) {
       external_id, title, source_name, source_type, url, published_at,
       snippet, search_query, relevance_score, status, updated_at
     )
-    VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, 'new', CURRENT_TIMESTAMP)
+    VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
     ON CONFLICT(url) DO UPDATE SET
       title = excluded.title,
       source_name = excluded.source_name,
@@ -506,14 +629,18 @@ async function upsertItem(db, item) {
       snippet = excluded.snippet,
       search_query = excluded.search_query,
       relevance_score =
-        CASE WHEN mans_media_watch.status = 'approved'
-          THEN mans_media_watch.relevance_score
+        CASE
+          WHEN mans_media_watch.status = 'approved'
+            THEN mans_media_watch.relevance_score
           ELSE excluded.relevance_score
         END,
       status =
-        CASE WHEN mans_media_watch.status = 'approved'
-          THEN 'approved'
-          ELSE mans_media_watch.status
+        CASE
+          WHEN mans_media_watch.status = 'approved'
+            THEN 'approved'
+          WHEN mans_media_watch.status = 'irrelevant'
+            THEN 'irrelevant'
+          ELSE excluded.status
         END,
       updated_at = CURRENT_TIMESTAMP
   `).bind(
@@ -524,7 +651,8 @@ async function upsertItem(db, item) {
     item.published_at || null,
     item.snippet || "",
     item.search_query || "",
-    rel.score
+    rel.score,
+    smart.status
   ).run();
 
   return Number(result.meta?.changes || 0) > 0;
@@ -541,6 +669,9 @@ async function cleanupExisting(db) {
   let scanned = 0;
   let rescored = 0;
   let autoIrrelevant = 0;
+  let movedToHistory = 0;
+  let movedToBackground = 0;
+  let movedToInbox = 0;
   let approvedProtected = 0;
   let unchanged = 0;
   const examples = [];
@@ -553,13 +684,16 @@ async function cleanupExisting(db) {
       continue;
     }
 
-    const rel = relevanceBreakdown(row);
-    let nextStatus = row.status;
-
-    if (rel.autoIrrelevant || rel.category === "wrong_person") {
-      nextStatus = "irrelevant";
+    // Respect a manual irrelevant decision: cleanup never resurrects it.
+    if (row.status === "irrelevant") {
+      unchanged += 1;
+      continue;
     }
 
+    const rel = relevanceBreakdown(row);
+    const smart = smartBucket(row);
+
+    const nextStatus = smart.status;
     const oldScore = Number(row.relevance_score || 0);
     const scoreChanged = oldScore !== rel.score;
     const statusChanged = String(row.status || "") !== String(nextStatus || "");
@@ -577,8 +711,11 @@ async function cleanupExisting(db) {
 
     if (scoreChanged) rescored += 1;
     if (statusChanged && nextStatus === "irrelevant") autoIrrelevant += 1;
+    if (statusChanged && nextStatus === "history") movedToHistory += 1;
+    if (statusChanged && nextStatus === "background") movedToBackground += 1;
+    if (statusChanged && nextStatus === "new") movedToInbox += 1;
 
-    if (examples.length < 20) {
+    if (examples.length < 30) {
       examples.push({
         id: row.id,
         title: row.title,
@@ -586,6 +723,8 @@ async function cleanupExisting(db) {
         new_score: rel.score,
         old_status: row.status,
         new_status: nextStatus,
+        smart_bucket: smart.bucket,
+        smart_reason: smart.reason,
         category: rel.category,
         identity_level: rel.identity_level,
         recency: rel.recency,
@@ -598,6 +737,9 @@ async function cleanupExisting(db) {
     scanned,
     rescored,
     autoIrrelevant,
+    movedToHistory,
+    movedToBackground,
+    movedToInbox,
     approvedProtected,
     unchanged,
     examples
@@ -653,6 +795,8 @@ async function listItems(db, url) {
 
   const classifiedItems = (result.results || []).map(item => {
     const intelligence = relevanceBreakdown(item);
+    const smart = smartBucket(item);
+
     return {
       ...item,
       intelligence_category: intelligence.category,
@@ -661,7 +805,9 @@ async function listItems(db, url) {
       auto_irrelevant: intelligence.autoIrrelevant,
       freshness: intelligence.recency.label,
       age_days: intelligence.recency.days,
-      calculated_relevance: intelligence.score
+      calculated_relevance: intelligence.score,
+      smart_bucket: smart.bucket,
+      smart_reason: smart.reason
     };
   });
 
@@ -694,6 +840,17 @@ async function listItems(db, url) {
     none: 0
   });
 
+  const smartSummary = classifiedItems.reduce((acc, item) => {
+    const key = item.smart_bucket || "background";
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {
+    current: 0,
+    history: 0,
+    background: 0,
+    irrelevant: 0
+  });
+
   const freshnessSummary = classifiedItems.reduce((acc, item) => {
     const key = item.freshness || "unknown";
     acc[key] = (acc[key] || 0) + 1;
@@ -711,6 +868,8 @@ async function listItems(db, url) {
       SUM(CASE WHEN status = 'new' THEN 1 ELSE 0 END) AS new_items,
       SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END) AS approved,
       SUM(CASE WHEN status = 'irrelevant' THEN 1 ELSE 0 END) AS irrelevant,
+      SUM(CASE WHEN status = 'history' THEN 1 ELSE 0 END) AS history,
+      SUM(CASE WHEN status = 'background' THEN 1 ELSE 0 END) AS background,
       SUM(CASE WHEN source_type = 'article' THEN 1 ELSE 0 END) AS articles,
       SUM(CASE WHEN source_type = 'social' THEN 1 ELSE 0 END) AS social,
       SUM(CASE WHEN source_type = 'video' THEN 1 ELSE 0 END) AS videos
@@ -721,12 +880,16 @@ async function listItems(db, url) {
     items: filteredItems,
     intelligenceSummary,
     identitySummary,
+    smartSummary,
     freshnessSummary,
     summary: {
       total: Number(summary?.total || 0),
       newItems: Number(summary?.new_items || 0),
       approved: Number(summary?.approved || 0),
       irrelevant: Number(summary?.irrelevant || 0),
+      history: Number(summary?.history || 0),
+      background: Number(summary?.background || 0),
+      smartInbox: Number(summary?.new_items || 0),
       articles: Number(summary?.articles || 0),
       social: Number(summary?.social || 0),
       videos: Number(summary?.videos || 0)
@@ -1027,7 +1190,7 @@ export async function onRequest(context) {
         const id = Number(body.id);
         const status = clean(body.status);
 
-        if (!id || !["new", "approved", "irrelevant"].includes(status)) {
+        if (!id || !["new", "approved", "irrelevant", "history", "background"].includes(status)) {
           return json({
             ok: false,
             error: "Ogiltigt id eller status."
