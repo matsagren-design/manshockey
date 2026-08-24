@@ -12,10 +12,19 @@ function fmtDate(value){
   return d.toLocaleDateString('sv-SE',{year:'numeric',month:'short',day:'numeric'});
 }
 
+function normalizeMediaType(type){
+  const t=String(type||'').toLowerCase();
+  if(t==='article'||t==='news')return 'article';
+  if(t==='video')return 'video';
+  if(t==='social')return 'social';
+  return 'web';
+}
+
 function typeLabel(type){
-  if(type==='article')return 'Artikel';
-  if(type==='video')return 'Video';
-  if(type==='social')return 'Social';
+  const t=normalizeMediaType(type);
+  if(t==='article')return 'Artikel';
+  if(t==='video')return 'Video';
+  if(t==='social')return 'Social';
   return 'Webb';
 }
 
@@ -194,41 +203,25 @@ export function Media({media=[]}){
 
   useEffect(()=>{loadWatch()},[]);
 
-  // Smart Inbox använder en separat klassificering för Aktuellt/Historik/Bakgrund.
-  // `status` används fortfarande för manuella lägen som approved/irrelevant.
-  // Läs därför smart-kategorin från API-fältet när det finns, med bakåtkompatibla fallback-fält.
-  function smartBucket(item){
-    const raw=(
-      item.smart_bucket ??
-      item.smart_status ??
-      item.inbox_bucket ??
-      item.inbox_status ??
-      item.classification ??
-      item.lifecycle ??
-      item.bucket ??
-      item.status ??
-      ''
-    );
-    const value=String(raw).trim().toLowerCase();
-    if(['history','historik'].includes(value))return 'history';
-    if(['background','bakgrund'].includes(value))return 'background';
-    if(['current','aktuellt','inbox','new'].includes(value))return 'new';
-    return value;
-  }
-
   const visibleWatch=useMemo(()=>{
     const q=textFilter.trim().toLowerCase();
     return items.filter(item=>{
-      const bucket=smartBucket(item);
-      if(tab==='inbox'&&bucket!=='new')return false;
-      if(tab==='approved'&&item.status!=='approved')return false;
-      if(tab==='history'&&bucket!=='history')return false;
-      if(tab==='background'&&bucket!=='background')return false;
-      if(tab==='irrelevant'&&item.status!=='irrelevant')return false;
-      if(typeFilter!=='all'&&item.source_type!==typeFilter)return false;
-      if(categoryFilter!=='all'&&item.intelligence_category!==categoryFilter)return false;
+      const effectiveStatus=item.status||item.smart_bucket||'new';
+      const effectiveType=normalizeMediaType(item.source_type);
+      const effectiveCategory=item.intelligence_category||'other';
+
+      if(tab==='inbox'&&effectiveStatus!=='new'&&item.smart_bucket!=='current')return false;
+      if(tab==='approved'&&effectiveStatus!=='approved')return false;
+      if(tab==='history'&&effectiveStatus!=='history'&&item.smart_bucket!=='history')return false;
+      if(tab==='background'&&effectiveStatus!=='background'&&item.smart_bucket!=='background')return false;
+      if(tab==='irrelevant'&&effectiveStatus!=='irrelevant'&&item.smart_bucket!=='irrelevant')return false;
+
+      if(typeFilter!=='all'&&effectiveType!==typeFilter)return false;
+      if(categoryFilter!=='all'&&effectiveCategory!==categoryFilter)return false;
+
       if(q){
-        const hay=[item.title,item.snippet,item.source_name,item.search_query].filter(Boolean).join(' ').toLowerCase();
+        const hay=[item.title,item.snippet,item.source_name,item.search_query,item.url]
+          .filter(Boolean).join(' ').toLowerCase();
         if(!hay.includes(q))return false;
       }
       return true;
@@ -265,24 +258,30 @@ export function Media({media=[]}){
     </div>
 
     <div style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center',marginBottom:16}}>
-      <button className={`btn ${tab==='inbox'?'active':''}`} onClick={()=>setTab('inbox')}>Aktuellt ({summary.newItems})</button>
-      <button className={`btn ${tab==='approved'?'active':''}`} onClick={()=>setTab('approved')}>Godkända ({summary.approved})</button>
-      <button className={`btn ${tab==='history'?'active':''}`} onClick={()=>setTab('history')}>Historik ({summary.history||0})</button>
-      <button className={`btn ${tab==='background'?'active':''}`} onClick={()=>setTab('background')}>Bakgrund ({summary.background||0})</button>
-      <button className={`btn ${tab==='irrelevant'?'active':''}`} onClick={()=>setTab('irrelevant')}>Irrelevanta ({summary.irrelevant})</button>
-      <button className={`btn ${tab==='all'?'active':''}`} onClick={()=>setTab('all')}>Alla nätträffar ({summary.total})</button>
-      <button className={`btn ${tab==='match'?'active':''}`} onClick={()=>setTab('match')}>Matchmedia ({media.length})</button>
+      <button className={`btn ${tab==='inbox'?'active':''}`} onClick={()=>{setTab('inbox');setTypeFilter('all');setCategoryFilter('all')}}>Aktuellt ({summary.newItems})</button>
+      <button className={`btn ${tab==='approved'?'active':''}`} onClick={()=>{setTab('approved');setTypeFilter('all');setCategoryFilter('all')}}>Godkända ({summary.approved})</button>
+      <button className={`btn ${tab==='history'?'active':''}`} onClick={()=>{setTab('history');setTypeFilter('all');setCategoryFilter('all')}}>Historik ({summary.history||0})</button>
+      <button className={`btn ${tab==='background'?'active':''}`} onClick={()=>{setTab('background');setTypeFilter('all');setCategoryFilter('all')}}>Bakgrund ({summary.background||0})</button>
+      <button className={`btn ${tab==='irrelevant'?'active':''}`} onClick={()=>{setTab('irrelevant');setTypeFilter('all');setCategoryFilter('all')}}>Irrelevanta ({summary.irrelevant})</button>
+      <button className={`btn ${tab==='all'?'active':''}`} onClick={()=>{setTab('all');setTypeFilter('all');setCategoryFilter('all')}}>Alla nätträffar ({summary.total})</button>
+      <button className={`btn ${tab==='match'?'active':''}`} onClick={()=>{setTab('match');setTypeFilter('all');setCategoryFilter('all')}}>Matchmedia ({media.length})</button>
     </div>
 
     <div style={{display:'flex',gap:10,flexWrap:'wrap',alignItems:'center',marginBottom:20}}>
       {!showingMatch&&<>
         <span style={{display:'inline-flex',gap:6,alignItems:'center',opacity:.72}}><Filter size={15}/>Typ</span>
         {[['all','Alla'],['article','Artikel'],['social','Social'],['video','Video'],['web','Webb']].map(([key,label])=>
-          <button key={key} className={`btn ${typeFilter===key?'active':''}`} onClick={()=>setTypeFilter(key)}>{label}</button>
+          <button key={key} className={`btn ${typeFilter===key?'active':''}`} onClick={()=>{
+            setTypeFilter(key);
+            setCategoryFilter('all');
+          }}>{label}</button>
         )}
         <span style={{display:'inline-flex',gap:6,alignItems:'center',opacity:.72,marginLeft:12}}><ShieldCheck size={15}/>Fokus</span>
         {[['all','Alla'],['player','Måns'],['team','Brooks'],['league','BCHL'],['hockey','Hockey']].map(([key,label])=>
-          <button key={`intel-${key}`} className={`btn ${categoryFilter===key?'active':''}`} onClick={()=>setCategoryFilter(key)}>{label}</button>
+          <button key={`intel-${key}`} className={`btn ${categoryFilter===key?'active':''}`} onClick={()=>{
+            setCategoryFilter(key);
+            setTypeFilter('all');
+          }}>{label}</button>
         )}
       </>}
       <div style={{marginLeft:'auto',position:'relative',minWidth:260,flex:'0 1 360px'}}>
