@@ -1,10 +1,10 @@
 /*
  * MansHockey Enterprise 30
  * Media Intelligence
- * E30.9.5 Strict Current Inbox
+ * E30.9.6 Temporal Classification Fix
  */
 
-const VERSION = "E30.9.5";
+const VERSION = "E30.9.6";
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data, null, 2), {
@@ -415,8 +415,7 @@ function seasonContext(item) {
   // Old-club references are historical only when there is no explicit 2026/27 signal.
   const historicalByText =
     !currentSeason &&
-    (oldSeason || oldClubHits >= 1) &&
-    futureSignalHits === 0;
+    (oldSeason || oldClubHits >= 1);
 
   let temporalClass = "unknown";
   if (currentSeason || futureSignalHits >= 1) temporalClass = "current";
@@ -442,8 +441,9 @@ function smartBucket(item) {
   const title = normalizeText(item.title);
   const snippet = normalizeText(item.snippet);
   const content = normalizeText(item.content);
-  const query = normalizeText(item.search_query);
-  const text = `${title} ${snippet} ${content} ${query}`.trim();
+  // Search queries describe what we asked the search engine for, not what the result is about.
+  // Never use search_query as evidence when deciding Current / History / Background.
+  const text = `${title} ${snippet} ${content}`.trim();
   const age = rel.recency?.days;
   const season = seasonContext(item);
 
@@ -470,7 +470,7 @@ function smartBucket(item) {
   const staticHits = countAny(text, staticReferenceTerms);
 
   // Explicit old season / old club context leaves Current immediately.
-  if (season.historicalByText && !season.currentSeason) {
+  if (season.historicalByText) {
     if (rel.category === "player") {
       return { bucket:"history", status:"history", reason:"historical-player-context" };
     }
