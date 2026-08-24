@@ -49,14 +49,21 @@ function App(){
     getItems('family_tasks',[]).then(setFamilyTasks);
   }
 
-  useEffect(()=>{
-    loadAll();
-    me().then(r=>setUser(r.user||null));
+  useEffect(() => {
+  loadAll();
+  me().then(r => setUser(r.user || null));
 
-    if('serviceWorker'in navigator){
-      navigator.serviceWorker.register('/service-worker.js').catch(()=>{});
-    }
-  },[]);
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker
+      .register('/service-worker.js', {
+        updateViaCache: 'none'
+      })
+      .then(registration => {
+        registration.update();
+      })
+      .catch(() => {});
+  }
+}, []);
 
   async function handleLogout(){
     await logout();
