@@ -1,10 +1,10 @@
 /*
  * MansHockey Enterprise 30
  * Media Intelligence
- * E30.8.8 Verified Identity Engine
+ * E30.8.9 Context & Freshness Engine
  */
 
-const VERSION = "E30.8.8";
+const VERSION = "E30.8.9";
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data, null, 2), {
@@ -79,6 +79,31 @@ function sourceType(url, fallback = "web") {
     host.includes("vimeo.com")
   ) return "video";
 
+  const currentContextHits = countAny(actualText, CURRENT_CONTEXT_TERMS);
+  const historicalContextHits = countAny(actualText, HISTORICAL_CONTEXT_TERMS);
+
+  if (currentContextHits >= 2) {
+    score += category === "player" ? 5 : 3;
+    reasons.push("current-season context");
+  } else if (currentContextHits === 1 && category === "player") {
+    score += 2;
+    reasons.push("current context");
+  }
+
+  if (historicalContextHits >= 2 && currentContextHits === 0) {
+    score -= category === "player" ? 8 : 12;
+    reasons.push("historical context penalty");
+  }
+
+  if (
+    category !== "player" &&
+    recency.days !== null &&
+    recency.days > 180
+  ) {
+    score -= 8;
+    reasons.push("stale non-player context");
+  }
+
   if (
     host.includes("bchl.ca") ||
     host.includes("flohockey.tv") ||
@@ -134,6 +159,18 @@ const STRONG_PLAYER_CONTEXT = [
   "björklöven", "boden", "u20", "j20"
 ];
 
+const CURRENT_CONTEXT_TERMS = [
+  "2026", "2026-27", "2026/27", "26/27",
+  "brooks bandits", "bchl", "training camp", "preseason", "exhibition",
+  "roster", "lineup", "transaction", "signing", "signed", "season",
+  "game", "match", "preview", "recap"
+];
+
+const HISTORICAL_CONTEXT_TERMS = [
+  "2025", "2024", "2023", "2022", "2021", "2020",
+  "former", "where are they now", "previous season", "historical"
+];
+
 function containsAny(text, terms) {
   return terms.some(term => text.includes(normalizeText(term)));
 }
@@ -154,16 +191,16 @@ function parseDate(value) {
 
 function recencyInfo(item) {
   const date = parseDate(item.published_at || item.publishedAt || item.date);
-  if (!date) return { label: "unknown", days: null, bonus: 0 };
+  if (!date) return { label: "unknown", days: null, bonus: 0, tier: "unknown" };
 
   const days = Math.max(0, Math.floor((Date.now() - date.getTime()) / 86400000));
 
-  if (days <= 7) return { label: "fresh", days, bonus: 12 };
-  if (days <= 30) return { label: "fresh", days, bonus: 8 };
-  if (days <= 90) return { label: "recent", days, bonus: 4 };
-  if (days <= 180) return { label: "recent", days, bonus: 0 };
-  if (days <= 365) return { label: "archive", days, bonus: -8 };
-  return { label: "archive", days, bonus: -14 };
+  if (days <= 7) return { label: "fresh", days, bonus: 14, tier: "now" };
+  if (days <= 30) return { label: "fresh", days, bonus: 10, tier: "month" };
+  if (days <= 90) return { label: "recent", days, bonus: 5, tier: "quarter" };
+  if (days <= 180) return { label: "recent", days, bonus: 0, tier: "season" };
+  if (days <= 365) return { label: "archive", days, bonus: -10, tier: "archive" };
+  return { label: "archive", days, bonus: -18, tier: "archive" };
 }
 
 function verifiedIdentity(item) {
@@ -326,6 +363,18 @@ function relevanceBreakdown(item) {
   score = Math.max(0, Math.min(100, Math.round(score)));
 
   if (score < 45) autoIrrelevant = true;
+
+  // E30.8.9: stale generic team/league/hockey hits should not crowd the inbox.
+  // Player hits are deliberately retained more generously for Måns' own history.
+  if (
+    category !== "player" &&
+    recency.days !== null &&
+    recency.days > 365 &&
+    score < 60
+  ) {
+    autoIrrelevant = true;
+    reasons.push("stale generic hit");
+  }
 
   return {
     score,
@@ -695,10 +744,10 @@ async function runSearch(db, apiKey, customQueries, includeContent) {
         '"Mans Agren" "Brooks Bandits"',
         '"Måns Ågren" BCHL',
         '"Mans Agren" BCHL',
-        '"Måns Ågren" roster lineup camp transaction signing',
-        '"Mans Agren" roster lineup camp transaction signing',
-        '"Brooks Bandits" roster lineup camp preseason',
-        '"Brooks Bandits" BCHL preview recap transaction'
+        '"Måns Ågren" roster lineup camp transaction signing 2026',
+        '"Mans Agren" roster lineup camp transaction signing 2026',
+        '"Brooks Bandits" roster lineup camp preseason 2026',
+        '"Brooks Bandits" BCHL preview recap transaction 2026'
       ];
 
   const found = [];
