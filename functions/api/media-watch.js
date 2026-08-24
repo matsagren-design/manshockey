@@ -1,10 +1,10 @@
 /*
  * MansHockey Enterprise 30
  * Media Intelligence
- * E30.9.3 Current Signal Filter Hotfix
+ * E30.9.4 Temporal Intelligence
  */
 
-const VERSION = "E30.9.3";
+const VERSION = "E30.9.4";
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data, null, 2), {
@@ -79,33 +79,9 @@ function sourceType(url, fallback = "web") {
     host.includes("vimeo.com")
   ) return "video";
 
-  const currentContextHits = countAny(actualText, CURRENT_CONTEXT_TERMS);
-  const historicalContextHits = countAny(actualText, HISTORICAL_CONTEXT_TERMS);
-
-  if (currentContextHits >= 2) {
-    score += category === "player" ? 5 : 3;
-    reasons.push("current-season context");
-  } else if (currentContextHits === 1 && category === "player") {
-    score += 2;
-    reasons.push("current context");
-  }
-
-  if (historicalContextHits >= 2 && currentContextHits === 0) {
-    score -= category === "player" ? 8 : 12;
-    reasons.push("historical context penalty");
-  }
-
-  if (
-    category !== "player" &&
-    recency.days !== null &&
-    recency.days > 180
-  ) {
-    score -= 8;
-    reasons.push("stale non-player context");
-  }
-
   if (
     host.includes("bchl.ca") ||
+    host.includes("brooksbandits.ca") ||
     host.includes("flohockey.tv") ||
     host.includes("eliteprospects.com") ||
     host.includes("thehockeynews.com") ||
@@ -393,6 +369,8 @@ function seasonContext(item) {
   const snippet = normalizeText(item.snippet);
   const content = normalizeText(item.content);
   const text = `${title} ${snippet} ${content}`.trim();
+  const published = parseDate(item.published_at || item.publishedAt || item.date);
+  const now = new Date();
 
   const currentSeasonPatterns = [
     /\b2026[\s/–-]*27\b/,
@@ -410,30 +388,52 @@ function seasonContext(item) {
   ];
 
   const explicitOldClubTerms = [
-    "bjorkloven",
-    "björklöven",
-    "boden",
-    "bodens hf",
-    "lulea hf",
-    "luleå hf",
-    "pitea hc",
-    "piteå hc",
-    "u16",
-    "j20 2024",
-    "j20 2025",
-    "where are they now",
-    "former"
+    "bjorkloven", "björklöven", "boden", "bodens hf",
+    "lulea hf", "luleå hf", "pitea hc", "piteå hc",
+    "u16", "j20 2024", "j20 2025", "where are they now", "former"
+  ];
+
+  const futureSignalTerms = [
+    "2026-27", "2026/27", "26-27", "26/27", "training camp", "camp",
+    "preseason", "exhibition", "season opener", "opening night",
+    "roster", "lineup", "signed", "signing", "transaction", "tender"
   ];
 
   const currentSeason = currentSeasonPatterns.some(re => re.test(text));
   const oldSeason = oldSeasonPatterns.some(re => re.test(text));
   const oldClubHits = countAny(text, explicitOldClubTerms);
+  const futureSignalHits = countAny(text, futureSignalTerms);
+
+  let publishedAgeDays = null;
+  let publishedYear = null;
+  if (published) {
+    publishedAgeDays = Math.max(0, Math.floor((now.getTime() - published.getTime()) / 86400000));
+    publishedYear = published.getUTCFullYear();
+  }
+
+  // Current-season evidence wins over generic historical wording.
+  // Old-club references are historical only when there is no explicit 2026/27 signal.
+  const historicalByText =
+    !currentSeason &&
+    (oldSeason || oldClubHits >= 1) &&
+    futureSignalHits === 0;
+
+  let temporalClass = "unknown";
+  if (currentSeason || futureSignalHits >= 1) temporalClass = "current";
+  else if (historicalByText) temporalClass = "history";
+  else if (publishedAgeDays !== null && publishedAgeDays <= 120) temporalClass = "recent";
+  else if (publishedAgeDays !== null && publishedAgeDays > 365) temporalClass = "archive";
+  else if (publishedAgeDays !== null) temporalClass = "background";
 
   return {
     currentSeason,
     oldSeason,
     oldClubHits,
-    historicalByText: oldSeason || oldClubHits >= 1
+    futureSignalHits,
+    historicalByText,
+    publishedAgeDays,
+    publishedYear,
+    temporalClass
   };
 }
 
@@ -446,6 +446,7 @@ function smartBucket(item) {
   const text = `${title} ${snippet} ${content} ${query}`.trim();
   const age = rel.recency?.days;
   const season = seasonContext(item);
+  const temporalClass = season.temporalClass;
 
   if (rel.category === "wrong_person" || rel.autoIrrelevant) {
     return { bucket:"irrelevant", status:"irrelevant", reason:"identity-filter" };
@@ -468,6 +469,11 @@ function smartBucket(item) {
     if(rel.category==="player") return {bucket:"history",status:"history",reason:"old-player-season"};
     return {bucket:"background",status:"background",reason:"old-season-background"};
   }
+
+  // Temporal Intelligence: explicit current/future 2026/27 signals should stay visible,
+  // even when the page also mentions an older club or previous season.
+  if(temporalClass==="current" && rel.category==="player" && rel.score>=60)
+    return {bucket:"current",status:"new",reason:"temporal-current-player"};
 
   if(rel.category==="player"){
     if(season.currentSeason||currentHits>=1||(age!==null&&age<=120&&rel.score>=72))
@@ -840,6 +846,19 @@ async function listItems(db, url) {
     irrelevant: 0
   });
 
+  const temporalSummary = classifiedItems.reduce((acc, item) => {
+    const key = item.season_context?.temporalClass || "unknown";
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {
+    current: 0,
+    recent: 0,
+    history: 0,
+    archive: 0,
+    background: 0,
+    unknown: 0
+  });
+
   const freshnessSummary = classifiedItems.reduce((acc, item) => {
     const key = item.freshness || "unknown";
     acc[key] = (acc[key] || 0) + 1;
@@ -870,6 +889,7 @@ async function listItems(db, url) {
     intelligenceSummary,
     identitySummary,
     smartSummary,
+    temporalSummary,
     freshnessSummary,
     summary: {
       total: Number(summary?.total || 0),
