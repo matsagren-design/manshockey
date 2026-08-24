@@ -1,10 +1,10 @@
 /*
  * MansHockey Enterprise 30
  * Media Intelligence
- * E30.8.7 Precision & Recency Engine
+ * E30.8.8 Verified Identity Engine
  */
 
-const VERSION = "E30.8.7";
+const VERSION = "E30.8.8";
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data, null, 2), {
@@ -107,16 +107,6 @@ const WRONG_PERSON_TERMS = [
   "föddes år", "foddes ar", "vigselplats", "pehrsdotter"
 ];
 
-const HOCKEY_TERMS = [
-  "hockey", "ice hockey", "bchl", "brooks bandits", "bandits",
-  "defenceman", "defenseman", "defender", "roster", "lineup",
-  "training camp", "camp", "preseason", "exhibition", "regular season",
-  "transaction", "transactions", "signing", "signed", "commit",
-  "preview", "game preview", "recap", "box score", "power play",
-  "penalty kill", "goal", "assist", "points", "shift", "junior hockey",
-  "eliteprospects", "flohockey"
-];
-
 const PLAYER_TERMS = [
   "måns ågren", "mans agren", "måns agren", "mans ågren"
 ];
@@ -129,8 +119,31 @@ const LEAGUE_TERMS = [
   "bchl", "british columbia hockey league"
 ];
 
+const HOCKEY_TERMS = [
+  "hockey", "ice hockey", "defenceman", "defenseman", "defender",
+  "roster", "lineup", "training camp", "camp", "preseason", "exhibition",
+  "regular season", "transaction", "transactions", "signing", "signed",
+  "commit", "preview", "game preview", "recap", "box score", "power play",
+  "penalty kill", "goal", "assist", "points", "shift", "junior hockey",
+  "eliteprospects", "flohockey"
+];
+
+const STRONG_PLAYER_CONTEXT = [
+  "defenceman", "defenseman", "defender", "back", "roster", "lineup",
+  "brooks bandits", "bchl", "eliteprospects", "flohockey", "bjorkloven",
+  "björklöven", "boden", "u20", "j20"
+];
+
 function containsAny(text, terms) {
   return terms.some(term => text.includes(normalizeText(term)));
+}
+
+function countAny(text, terms) {
+  let count = 0;
+  for (const term of terms) {
+    if (text.includes(normalizeText(term))) count += 1;
+  }
+  return count;
 }
 
 function parseDate(value) {
@@ -141,109 +154,134 @@ function parseDate(value) {
 
 function recencyInfo(item) {
   const date = parseDate(item.published_at || item.publishedAt || item.date);
-  if (!date) {
-    return { label: "unknown", days: null, bonus: 0 };
+  if (!date) return { label: "unknown", days: null, bonus: 0 };
+
+  const days = Math.max(0, Math.floor((Date.now() - date.getTime()) / 86400000));
+
+  if (days <= 7) return { label: "fresh", days, bonus: 12 };
+  if (days <= 30) return { label: "fresh", days, bonus: 8 };
+  if (days <= 90) return { label: "recent", days, bonus: 4 };
+  if (days <= 180) return { label: "recent", days, bonus: 0 };
+  if (days <= 365) return { label: "archive", days, bonus: -8 };
+  return { label: "archive", days, bonus: -14 };
+}
+
+function verifiedIdentity(item) {
+  const title = normalizeText(item.title);
+  const snippet = normalizeText(item.snippet);
+  const content = normalizeText(item.content);
+
+  // IMPORTANT:
+  // search_query is deliberately NOT used as identity evidence.
+  const actualText = `${title} ${snippet} ${content}`.trim();
+
+  const playerInTitle = containsAny(title, PLAYER_TERMS);
+  const playerInSnippet = containsAny(snippet, PLAYER_TERMS);
+  const playerInContent = containsAny(content, PLAYER_TERMS);
+  const playerAnywhere = playerInTitle || playerInSnippet || playerInContent;
+
+  const team = containsAny(actualText, TEAM_TERMS);
+  const league = containsAny(actualText, LEAGUE_TERMS);
+  const hockey = containsAny(actualText, HOCKEY_TERMS);
+  const strongContextHits = countAny(actualText, STRONG_PLAYER_CONTEXT);
+
+  let level = "none";
+
+  if (playerInTitle) {
+    level = "verified";
+  } else if (playerInContent && strongContextHits >= 1) {
+    level = "verified";
+  } else if (playerInSnippet && strongContextHits >= 2) {
+    level = "probable";
+  } else if (playerAnywhere && strongContextHits >= 1) {
+    level = "probable";
   }
 
-  const now = Date.now();
-  const days = Math.max(0, Math.floor((now - date.getTime()) / 86400000));
-
-  if (days <= 7) return { label: "fresh", days, bonus: 14 };
-  if (days <= 30) return { label: "fresh", days, bonus: 10 };
-  if (days <= 90) return { label: "recent", days, bonus: 5 };
-  if (days <= 180) return { label: "recent", days, bonus: 1 };
-  if (days <= 365) return { label: "archive", days, bonus: -6 };
-  return { label: "archive", days, bonus: -12 };
+  return {
+    level,
+    playerInTitle,
+    playerInSnippet,
+    playerInContent,
+    playerAnywhere,
+    team,
+    league,
+    hockey,
+    strongContextHits
+  };
 }
 
 function relevanceBreakdown(item) {
   const title = normalizeText(item.title);
   const snippet = normalizeText(item.snippet);
   const content = normalizeText(item.content);
-  const query = normalizeText(item.search_query);
-  const host = hostname(item.url).toLowerCase();
-  const text = `${title} ${snippet} ${content} ${query} ${host}`;
+  const actualText = `${title} ${snippet} ${content}`.trim();
 
-  const player = containsAny(text, PLAYER_TERMS);
-  const team = containsAny(text, TEAM_TERMS);
-  const league = containsAny(text, LEAGUE_TERMS);
-  const hockey = containsAny(text, HOCKEY_TERMS);
+  const host = hostname(item.url).toLowerCase();
+  const identity = verifiedIdentity(item);
+  const recency = recencyInfo(item);
+  const reasons = [];
 
   const blockedHost = BLOCKED_HOSTS.some(h => host === h || host.endsWith(`.${h}`));
-  const wrongTerms = containsAny(text, WRONG_PERSON_TERMS);
+  const wrongTerms = containsAny(actualText, WRONG_PERSON_TERMS);
 
-  const reasons = [];
+  if (blockedHost || wrongTerms) {
+    return {
+      score: 0,
+      category: "wrong_person",
+      identity_level: "none",
+      reasons: [blockedHost ? "blocked genealogy source" : "wrong-person/genealogy terms"],
+      autoIrrelevant: true,
+      recency
+    };
+  }
+
   let score = 0;
   let category = "other";
   let autoIrrelevant = false;
 
-  if (blockedHost || wrongTerms) {
-    score = 0;
-    category = "wrong_person";
-    autoIrrelevant = true;
-    reasons.push(blockedHost ? "blocked genealogy source" : "wrong-person/genealogy terms");
-    return {
-      score,
-      category,
-      reasons,
-      autoIrrelevant,
-      recency: recencyInfo(item)
-    };
-  }
-
-  // Måns is the primary signal.
-  if (player) {
+  if (identity.level === "verified") {
     category = "player";
-    score = 78;
-    reasons.push("Måns Ågren");
-    if (hockey) {
-      score += 12;
-      reasons.push("hockey context");
+    score = 84;
+    reasons.push("verified Måns identity");
+
+    if (identity.playerInTitle) {
+      score += 8;
+      reasons.push("Måns in title");
     }
-    if (team) {
-      score += 7;
-      reasons.push("Brooks Bandits");
+
+    if (identity.team) {
+      score += 5;
+      reasons.push("Brooks context");
     }
-    if (league) {
-      score += 3;
-      reasons.push("BCHL");
+
+    if (identity.league) {
+      score += 2;
+      reasons.push("BCHL context");
     }
-  } else if (team) {
+  } else if (identity.level === "probable") {
+    category = "player";
+    score = 66;
+    reasons.push("probable Måns identity");
+
+    if (identity.team) score += 5;
+    if (identity.league) score += 2;
+  } else if (identity.team) {
     category = "team";
-    score = 62;
+    score = 56;
     reasons.push("Brooks Bandits");
-    if (league) {
-      score += 6;
-      reasons.push("BCHL");
-    }
-    if (hockey) {
-      score += 4;
-      reasons.push("hockey context");
-    }
-  } else if (league) {
+    if (identity.league) score += 4;
+    if (identity.hockey) score += 3;
+  } else if (identity.league) {
     category = "league";
-    score = 50;
+    score = 44;
     reasons.push("BCHL");
-    if (hockey) {
-      score += 4;
-      reasons.push("hockey context");
-    }
-  } else if (hockey) {
+    if (identity.hockey) score += 2;
+  } else if (identity.hockey) {
     category = "hockey";
-    score = 42;
+    score = 34;
     reasons.push("general hockey");
   }
 
-  // Strong title weighting.
-  if (containsAny(title, PLAYER_TERMS)) {
-    score += 8;
-    reasons.push("Måns in title");
-  } else if (containsAny(title, TEAM_TERMS)) {
-    score += 4;
-    reasons.push("Brooks in title");
-  }
-
-  // Trusted hockey sources get a small boost, never enough to turn irrelevant content relevant.
   if (
     host.includes("bchl.ca") ||
     host.includes("brooksbandits.ca") ||
@@ -254,16 +292,35 @@ function relevanceBreakdown(item) {
     reasons.push("trusted hockey source");
   }
 
-  const recency = recencyInfo(item);
   score += recency.bonus;
-  if (recency.label !== "unknown") {
-    reasons.push(`recency:${recency.label}`);
+  if (recency.label !== "unknown") reasons.push(`recency:${recency.label}`);
+
+  if (category !== "player" && recency.label === "archive") {
+    score -= 6;
+    reasons.push("old non-player item");
   }
 
-  // General Brooks/BCHL archive material should not outrank current Måns material.
-  if (!player && recency.label === "archive") {
-    score -= 5;
-    reasons.push("old non-player item");
+  // Social snippets are noisy. A social item cannot be "verified Måns" unless
+  // the name is in the title or in scraped page content.
+  if (
+    item.source_type === "social" &&
+    category === "player" &&
+    identity.level === "verified" &&
+    !identity.playerInTitle &&
+    !identity.playerInContent
+  ) {
+    score = Math.min(score, 72);
+    reasons.push("social snippet cap");
+  }
+
+  // Probable social items are capped harder.
+  if (
+    item.source_type === "social" &&
+    category === "player" &&
+    identity.level === "probable"
+  ) {
+    score = Math.min(score, 64);
+    reasons.push("probable social cap");
   }
 
   score = Math.max(0, Math.min(100, Math.round(score)));
@@ -273,6 +330,7 @@ function relevanceBreakdown(item) {
   return {
     score,
     category,
+    identity_level: identity.level,
     reasons,
     autoIrrelevant,
     recency
@@ -377,7 +435,6 @@ async function firecrawlScrape(apiKey, url) {
 async function upsertItem(db, item) {
   const rel = relevanceBreakdown(item);
 
-  // Block known wrong-person sources before D1.
   if (
     !item.url ||
     !item.title ||
@@ -481,6 +538,7 @@ async function cleanupExisting(db) {
         old_status: row.status,
         new_status: nextStatus,
         category: rel.category,
+        identity_level: rel.identity_level,
         recency: rel.recency,
         reasons: rel.reasons
       });
@@ -549,6 +607,7 @@ async function listItems(db, url) {
     return {
       ...item,
       intelligence_category: intelligence.category,
+      identity_level: intelligence.identity_level,
       intelligence_reasons: intelligence.reasons,
       auto_irrelevant: intelligence.autoIrrelevant,
       freshness: intelligence.recency.label,
@@ -574,6 +633,16 @@ async function listItems(db, url) {
     hockey: 0,
     wrong_person: 0,
     other: 0
+  });
+
+  const identitySummary = classifiedItems.reduce((acc, item) => {
+    const key = item.identity_level || "none";
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {
+    verified: 0,
+    probable: 0,
+    none: 0
   });
 
   const freshnessSummary = classifiedItems.reduce((acc, item) => {
@@ -602,6 +671,7 @@ async function listItems(db, url) {
   return {
     items: filteredItems,
     intelligenceSummary,
+    identitySummary,
     freshnessSummary,
     summary: {
       total: Number(summary?.total || 0),
@@ -625,10 +695,10 @@ async function runSearch(db, apiKey, customQueries, includeContent) {
         '"Mans Agren" "Brooks Bandits"',
         '"Måns Ågren" BCHL',
         '"Mans Agren" BCHL',
-        '"Måns Ågren" roster OR lineup OR camp OR transaction OR signing',
-        '"Mans Agren" roster OR lineup OR camp OR transaction OR signing',
-        '"Brooks Bandits" roster OR lineup OR camp OR preseason',
-        '"Brooks Bandits" BCHL preview OR recap OR transaction'
+        '"Måns Ågren" roster lineup camp transaction signing',
+        '"Mans Agren" roster lineup camp transaction signing',
+        '"Brooks Bandits" roster lineup camp preseason',
+        '"Brooks Bandits" BCHL preview recap transaction'
       ];
 
   const found = [];
@@ -662,7 +732,8 @@ async function runSearch(db, apiKey, customQueries, includeContent) {
   }
 
   let saved = 0;
-  let playerHits = 0;
+  let verifiedPlayerHits = 0;
+  let probablePlayerHits = 0;
   let teamHits = 0;
   let leagueHits = 0;
   let hockeyHits = 0;
@@ -684,6 +755,7 @@ async function runSearch(db, apiKey, customQueries, includeContent) {
           url: item.url,
           score: rel.score,
           category: rel.category,
+          identity_level: rel.identity_level,
           recency: rel.recency,
           reasons: rel.reasons
         });
@@ -699,6 +771,7 @@ async function runSearch(db, apiKey, customQueries, includeContent) {
           url: item.url,
           score: rel.score,
           category: rel.category,
+          identity_level: rel.identity_level,
           recency: rel.recency,
           reasons: rel.reasons
         });
@@ -706,7 +779,8 @@ async function runSearch(db, apiKey, customQueries, includeContent) {
       continue;
     }
 
-    if (rel.category === "player") playerHits += 1;
+    if (rel.category === "player" && rel.identity_level === "verified") verifiedPlayerHits += 1;
+    if (rel.category === "player" && rel.identity_level === "probable") probablePlayerHits += 1;
     if (rel.category === "team") teamHits += 1;
     if (rel.category === "league") leagueHits += 1;
     if (rel.category === "hockey") hockeyHits += 1;
@@ -717,6 +791,7 @@ async function runSearch(db, apiKey, customQueries, includeContent) {
         url: item.url,
         score: rel.score,
         category: rel.category,
+        identity_level: rel.identity_level,
         recency: rel.recency,
         reasons: rel.reasons
       });
@@ -731,7 +806,8 @@ async function runSearch(db, apiKey, customQueries, includeContent) {
     found: found.length,
     unique: unique.size,
     saved,
-    playerHits,
+    verifiedPlayerHits,
+    probablePlayerHits,
     teamHits,
     leagueHits,
     hockeyHits,
@@ -869,6 +945,7 @@ export async function onRequest(context) {
           relevanceAfterScrape = {
             score: rel.score,
             category: rel.category,
+            identity_level: rel.identity_level,
             reasons: rel.reasons,
             autoIrrelevant: rel.autoIrrelevant,
             recency: rel.recency
