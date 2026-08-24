@@ -194,13 +194,36 @@ export function Media({media=[]}){
 
   useEffect(()=>{loadWatch()},[]);
 
+  // Smart Inbox använder en separat klassificering för Aktuellt/Historik/Bakgrund.
+  // `status` används fortfarande för manuella lägen som approved/irrelevant.
+  // Läs därför smart-kategorin från API-fältet när det finns, med bakåtkompatibla fallback-fält.
+  function smartBucket(item){
+    const raw=(
+      item.smart_bucket ??
+      item.smart_status ??
+      item.inbox_bucket ??
+      item.inbox_status ??
+      item.classification ??
+      item.lifecycle ??
+      item.bucket ??
+      item.status ??
+      ''
+    );
+    const value=String(raw).trim().toLowerCase();
+    if(['history','historik'].includes(value))return 'history';
+    if(['background','bakgrund'].includes(value))return 'background';
+    if(['current','aktuellt','inbox','new'].includes(value))return 'new';
+    return value;
+  }
+
   const visibleWatch=useMemo(()=>{
     const q=textFilter.trim().toLowerCase();
     return items.filter(item=>{
-      if(tab==='inbox'&&item.status!=='new')return false;
+      const bucket=smartBucket(item);
+      if(tab==='inbox'&&bucket!=='new')return false;
       if(tab==='approved'&&item.status!=='approved')return false;
-      if(tab==='history'&&item.status!=='history')return false;
-      if(tab==='background'&&item.status!=='background')return false;
+      if(tab==='history'&&bucket!=='history')return false;
+      if(tab==='background'&&bucket!=='background')return false;
       if(tab==='irrelevant'&&item.status!=='irrelevant')return false;
       if(typeFilter!=='all'&&item.source_type!==typeFilter)return false;
       if(categoryFilter!=='all'&&item.intelligence_category!==categoryFilter)return false;
